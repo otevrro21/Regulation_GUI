@@ -154,6 +154,58 @@
         .not-homed {
             color: #f44336;
         }
+        /* Toggle switch styles */
+        .switch-container {
+            display: flex;
+            align-items: center;
+            margin: 5px 0;
+            width: 100%;
+        }
+        .switch-label {
+            margin-right: 10px;
+            color: #bbb;
+            font-size: 14px;
+            flex-grow: 1;
+        }
+        .switch {
+            position: relative;
+            display: inline-block;
+            width: 50px;
+            height: 24px;
+        }
+        .switch input { 
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+        .slider-switch {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: #555;
+            transition: .4s;
+            border-radius: 24px;
+        }
+        .slider-switch:before {
+            position: absolute;
+            content: "";
+            height: 16px;
+            width: 16px;
+            left: 4px;
+            bottom: 4px;
+            background-color: white;
+            transition: .4s;
+            border-radius: 50%;
+        }
+        input:checked + .slider-switch {
+            background-color: #2196F3;
+        }
+        input:checked + .slider-switch:before {
+            transform: translateX(26px);
+        }
     </style>
 </head>
 <body>
@@ -167,6 +219,13 @@
         </div>
         <button id="set-min-button">Set Min Position</button>
         <button id="set-max-button">Set Max Position</button>
+        <div class="switch-container">
+            <span class="switch-label">Motor Power:</span>
+            <label class="switch">
+                <input type="checkbox" id="motor-switch" disabled>
+                <span class="slider-switch"></span>
+            </label>
+        </div>
     </div>
 
     <div class="container">
@@ -220,6 +279,7 @@
         const heightFill = document.getElementById('height-fill');
         const setMinButton = document.getElementById('set-min-button');
         const setMaxButton = document.getElementById('set-max-button');
+        const motorSwitch = document.getElementById('motor-switch');
         const pSlider = document.getElementById('p-slider');
         const iSlider = document.getElementById('s-slider');
         const dSlider = document.getElementById('d-slider');
@@ -292,6 +352,10 @@
                     statusText.className = 'disconnected';
                     connectButton.textContent = 'Connect to Device';
                     readLoopRunning = false;
+                    
+                    // Disable and reset motor switch
+                    motorSwitch.disabled = true;
+                    motorSwitch.checked = false;
                 } catch (error) {
                     console.error('Error disconnecting:', error);
                 }
@@ -314,6 +378,9 @@
                 statusText.textContent = 'Connected';
                 statusText.className = 'connected';
                 connectButton.textContent = 'Disconnect';
+                
+                // Enable motor switch when connected
+                motorSwitch.disabled = false;
                 
                 // Set up the reader and writer
                 setupCommunication();
@@ -429,6 +496,33 @@
             }
         }
 
+        // Add motor switch event listener
+        motorSwitch.addEventListener('change', function() {
+            toggleMotor(this.checked);
+        });
+
+        // Toggle motor on/off - improved version
+        async function toggleMotor(isOn) {
+            if (!writer) return;
+            
+            try {
+                // Send Z:1 for on, Z:0 for off
+                const command = `Z:${isOn ? '1' : '0'}\n`;
+                const encoder = new TextEncoder();
+                const data = encoder.encode(command);
+                await writer.write(data);
+                
+                // Ensure the UI reflects the attempted state
+                motorSwitch.checked = isOn;
+                
+                console.log(`Motor turned ${isOn ? 'ON' : 'OFF'}`);
+            } catch (error) {
+                console.error('Error toggling motor:', error);
+                // Revert switch state if there was an error
+                motorSwitch.checked = !isOn;
+            }
+        }
+
         // Read data from the serial device
         async function readLoop() {
             while (port && readLoopRunning) {
@@ -503,6 +597,17 @@
                 homingStatus.classList.remove("not-homed");
                 homingStatus.classList.add("homed");
                 console.log('Max position set, system homed');
+            }
+
+            // Check for motor status updates (Z0 or Z1)
+            if (data.includes("Z0")) {
+                motorSwitch.checked = false;
+                console.log('Motor status: OFF');
+            }
+            
+            if (data.includes("Z1")) {
+                motorSwitch.checked = true;
+                console.log('Motor status: ON');
             }
         }
     </script>
