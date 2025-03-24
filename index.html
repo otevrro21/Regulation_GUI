@@ -86,6 +86,18 @@
             text-align: left;
             font-size: 16px;
         }
+        .pid-controls {
+            margin-top: 10px;
+            margin-bottom: 20px;
+            padding: 15px;
+            background-color: #252525;
+            border-radius: 6px;
+        }
+        .pid-controls h3 {
+            margin-top: 0;
+            margin-bottom: 15px;
+            color: #ddd;
+        }
         button {
             display: block;
             margin: 20px auto;
@@ -174,6 +186,26 @@
                 </div>
                 <div class="height-value" id="height-percentage">0</div>
             </div>
+            
+            <div class="pid-controls">
+                <h3>PSD Parameters</h3>
+                <div class="slider-container">
+                    <label for="p-slider">P value:</label>
+                    <input type="range" id="p-slider" class="slider" min="0" max="100" value="0" step="1">
+                    <span id="p-value" class="value">0</span>
+                </div>
+                <div class="slider-container">
+                    <label for="s-slider">S value:</label>
+                    <input type="range" id="s-slider" class="slider" min="0" max="100" value="0" step="1">
+                    <span id="s-value" class="value">0</span>
+                </div>
+                <div class="slider-container">
+                    <label for="d-slider">D value:</label>
+                    <input type="range" id="d-slider" class="slider" min="0" max="100" value="0" step="1">
+                    <span id="d-value" class="value">0</span>
+                </div>
+                <button id="send-pid-button">Apply PSD Values</button>
+            </div>
         </div>
     </div>
 
@@ -188,6 +220,13 @@
         const heightFill = document.getElementById('height-fill');
         const setMinButton = document.getElementById('set-min-button');
         const setMaxButton = document.getElementById('set-max-button');
+        const pSlider = document.getElementById('p-slider');
+        const iSlider = document.getElementById('s-slider');
+        const dSlider = document.getElementById('d-slider');
+        const pValue = document.getElementById('p-value');
+        const iValue = document.getElementById('s-value');
+        const dValue = document.getElementById('d-value');
+        const sendPidButton = document.getElementById('send-pid-button');
 
         // Serial port variables
         let port;
@@ -195,10 +234,32 @@
         let writer;
         let readLoopRunning = false;
 
-        // Update slider value display
+        // Update slider value display during dragging (but don't send value)
         positionSlider.addEventListener('input', () => {
             positionValue.textContent = positionSlider.value + '%';
+        });
+
+        // Send the position value when the user releases the slider
+        positionSlider.addEventListener('change', () => {
             sendPositionValue();
+        });
+
+        // Update PID value displays
+        pSlider.addEventListener('input', () => {
+            pValue.textContent = pSlider.value;
+        });
+
+        iSlider.addEventListener('input', () => {
+            iValue.textContent = iSlider.value;
+        });
+
+        dSlider.addEventListener('input', () => {
+            dValue.textContent = dSlider.value;
+        });
+
+        // Send PSD values button
+        sendPidButton.addEventListener('click', () => {
+            sendPsdValues();
         });
 
         // Set min position
@@ -330,6 +391,26 @@
                 console.log('Sent max position command');
             } catch (error) {
                 console.error('Error sending max position command:', error);
+            }
+        }
+
+        // Send PSD values to the serial device
+        async function sendPsdValues() {
+            if (!writer) return;
+            try {
+                const p = pSlider.value;
+                const i = iSlider.value;
+                const d = dSlider.value;
+                
+                // Format: "PSD:p,i,d" followed by the values
+                const command = `PSD:${p},${i},${d}\n`;
+                const encoder = new TextEncoder();
+                const data = encoder.encode(command);
+                await writer.write(data);
+                
+                console.log('Sent PSD values:', p, i, d);
+            } catch (error) {
+                console.error('Error sending PSD values:', error);
             }
         }
 
