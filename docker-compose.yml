@@ -1,8 +1,8 @@
 version: '3'
 services:
-  webserver:
-    image: sh4rkbyte/webserver:latest
-    container_name: webserver
+  regulation_gui:
+    image: sh4rkbyte/regulation_gui:latest
+    container_name: regulation_gui
     ports:
       - "35543:35543"
     restart: unless-stopped
@@ -15,4 +15,4 @@ services:
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
     command: --interval 3600 --cleanup --label-enable
-    restart: unless-stopped
+    restart: unless-stoppeds
