@@ -8,18 +8,3 @@ services:
     volumes:
       - ./:/usr/share/nginx/html
     restart: unless-stopped
-    
-  webhook:
-    image: node:16-alpine
-    restart: unless-stopped
-    ports:
-      - "9000:9000"
-    volumes:
-      - ./:/app
-      - /var/run/docker.sock:/var/run/docker.sock
-    working_dir: /app
-    command: sh -c "npm install express crypto-js && node /app/webhook.js"
-    environment:
-      - WEBHOOK_SECRET=bomboclat
-      - REPO_PATH=/app
-      - NGINX_SERVICE_NAME=nginx
