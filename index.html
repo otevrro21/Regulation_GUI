@@ -1,0 +1,325 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PID Controller Interface</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background-color: white;
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        }
+        h1 {
+            color: #333;
+            text-align: center;
+        }
+        .controller {
+            margin-bottom: 30px;
+        }
+        .slider-container {
+            display: flex;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+        label {
+            width: 120px;
+            font-weight: bold;
+        }
+        .slider {
+            flex-grow: 1;
+            margin: 0 20px;
+        }
+        .value {
+            width: 60px;
+            text-align: center;
+            font-weight: bold;
+        }
+        .height-display {
+            text-align: center;
+            margin-top: 30px;
+            padding: 20px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            background-color: #f9f9f9;
+        }
+        .height-value {
+            font-size: 48px;
+            font-weight: bold;
+            color: #2196F3;
+        }
+        .height-label {
+            font-size: 18px;
+            color: #666;
+            margin-top: 10px;
+        }
+        button {
+            display: block;
+            margin: 20px auto;
+            padding: 12px 24px;
+            background-color: #2196F3;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            font-size: 16px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+        button:hover {
+            background-color: #0b7dda;
+        }
+        .connection-status {
+            text-align: center;
+            margin-top: 10px;
+            font-size: 14px;
+        }
+        .connected {
+            color: green;
+        }
+        .disconnected {
+            color: red;
+        }
+        .visual-indicator {
+            width: 40px;
+            height: 200px;
+            margin: 0 auto;
+            background-color: #e0e0e0;
+            border: 1px solid #bbb;
+            border-radius: 4px;
+            position: relative;
+            overflow: hidden;
+        }
+        .fill {
+            position: absolute;
+            bottom: 0;
+            width: 100%;
+            background-color: #2196F3;
+            transition: height 0.3s ease-out;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>PID Controller Interface</h1>
+        
+        <div class="connection-status">
+            <span id="status-text" class="disconnected">Disconnected</span>
+        </div>
+        
+        <button id="connect-button">Connect to Device</button>
+        
+        <div class="controller">
+            <div class="slider-container">
+                <label for="p-slider">P Value:</label>
+                <input type="range" id="p-slider" class="slider" min="0" max="100" value="50" step="0.1">
+                <span id="p-value" class="value">50.0</span>
+            </div>
+            
+            <div class="slider-container">
+                <label for="i-slider">I Value:</label>
+                <input type="range" id="i-slider" class="slider" min="0" max="100" value="20" step="0.1">
+                <span id="i-value" class="value">20.0</span>
+            </div>
+            
+            <div class="slider-container">
+                <label for="d-slider">D Value:</label>
+                <input type="range" id="d-slider" class="slider" min="0" max="100" value="10" step="0.1">
+                <span id="d-value" class="value">10.0</span>
+            </div>
+        </div>
+        
+        <div class="height-display">
+            <div class="visual-indicator">
+                <div id="height-fill" class="fill" style="height: 0%;"></div>
+            </div>
+            <div class="height-value" id="height-percentage">0%</div>
+            <div class="height-label">Current Height</div>
+        </div>
+    </div>
+
+    <script>
+        // DOM elements
+        const connectButton = document.getElementById('connect-button');
+        const statusText = document.getElementById('status-text');
+        const pSlider = document.getElementById('p-slider');
+        const iSlider = document.getElementById('i-slider');
+        const dSlider = document.getElementById('d-slider');
+        const pValue = document.getElementById('p-value');
+        const iValue = document.getElementById('i-value');
+        const dValue = document.getElementById('d-value');
+        const heightPercentage = document.getElementById('height-percentage');
+        const heightFill = document.getElementById('height-fill');
+
+        // Serial port variables
+        let port;
+        let reader;
+        let writer;
+        let readLoopRunning = false;
+
+        // Update slider value displays
+        pSlider.addEventListener('input', () => {
+            pValue.textContent = parseFloat(pSlider.value).toFixed(1);
+            sendPIDValues();
+        });
+
+        iSlider.addEventListener('input', () => {
+            iValue.textContent = parseFloat(iSlider.value).toFixed(1);
+            sendPIDValues();
+        });
+
+        dSlider.addEventListener('input', () => {
+            dValue.textContent = parseFloat(dSlider.value).toFixed(1);
+            sendPIDValues();
+        });
+
+        // Connect to serial port
+        connectButton.addEventListener('click', async () => {
+            if (port) {
+                // Disconnect if already connected
+                try {
+                    if (reader) {
+                        await reader.cancel();
+                        reader = null;
+                    }
+                    if (writer) {
+                        await writer.close();
+                        writer = null;
+                    }
+                    await port.close();
+                    port = null;
+                    
+                    statusText.textContent = 'Disconnected';
+                    statusText.className = 'disconnected';
+                    connectButton.textContent = 'Connect to Device';
+                    readLoopRunning = false;
+                } catch (error) {
+                    console.error('Error disconnecting:', error);
+                }
+                return;
+            }
+
+            // Check if Web Serial API is supported
+            if (!('serial' in navigator)) {
+                alert('Web Serial API is not supported in this browser. Try using Chrome or Edge.');
+                return;
+            }
+
+            try {
+                // Request a port from the user
+                port = await navigator.serial.requestPort();
+                
+                // Open the port
+                await port.open({ baudRate: 9600 });
+                
+                statusText.textContent = 'Connected';
+                statusText.className = 'connected';
+                connectButton.textContent = 'Disconnect';
+                
+                // Set up the reader and writer
+                setupCommunication();
+                
+                // Send initial PID values
+                sendPIDValues();
+            } catch (error) {
+                console.error('Error connecting to serial port:', error);
+                if (error.name === 'NotFoundError') {
+                    alert('No compatible serial device was found.');
+                } else {
+                    alert('Error connecting to serial device: ' + error.message);
+                }
+            }
+        });
+
+        // Set up communication with the serial device
+        async function setupCommunication() {
+            try {
+                // Create reader and writer
+                writer = port.writable.getWriter();
+                reader = port.readable.getReader();
+                
+                // Start the read loop
+                readLoopRunning = true;
+                readLoop();
+            } catch (error) {
+                console.error('Error setting up communication:', error);
+                statusText.textContent = 'Error: ' + error.message;
+                statusText.className = 'disconnected';
+            }
+        }
+
+        // Send PID values to the serial device
+        async function sendPIDValues() {
+            if (!writer) return;
+            
+            try {
+                const p = parseFloat(pSlider.value).toFixed(1);
+                const i = parseFloat(iSlider.value).toFixed(1);
+                const d = parseFloat(dSlider.value).toFixed(1);
+                
+                // Format: "PID:P,I,D" (e.g., "PID:50.0,20.0,10.0")
+                const command = `PID:${p},${i},${d}\n`;
+                const encoder = new TextEncoder();
+                const data = encoder.encode(command);
+                await writer.write(data);
+                
+                console.log('Sent PID values:', p, i, d);
+            } catch (error) {
+                console.error('Error sending PID values:', error);
+            }
+        }
+
+        // Read data from the serial device
+        async function readLoop() {
+            while (port && readLoopRunning) {
+                try {
+                    const { value, done } = await reader.read();
+                    
+                    if (done) {
+                        // Reader has been canceled
+                        break;
+                    }
+                    
+                    // Process the received data
+                    const text = new TextDecoder().decode(value);
+                    processSerialData(text);
+                } catch (error) {
+                    console.error('Error reading from serial port:', error);
+                    if (readLoopRunning) {
+                        // Wait a bit before trying again
+                        await new Promise(r => setTimeout(r, 1000));
+                    } else {
+                        break;
+                    }
+                }
+            }
+        }
+
+        // Process data received from the serial device
+        function processSerialData(data) {
+            // Look for height percentage data in format "HEIGHT:XX.X"
+            const heightRegex = /HEIGHT:(\d+(\.\d+)?)/;
+            const match = data.match(heightRegex);
+            
+            if (match) {
+                const height = parseFloat(match[1]);
+                
+                // Update the height percentage display
+                heightPercentage.textContent = `${height.toFixed(1)}%`;
+                
+                // Update the visual indicator
+                heightFill.style.height = `${height}%`;
+                
+                console.log('Received height percentage:', height);
+            }
+        }
+    </script>
+</body>
+</html>
