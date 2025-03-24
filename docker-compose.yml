@@ -1,10 +1,18 @@
 version: '3'
-
 services:
-  nginx:
-    image: nginx:latest
+  webserver:
+    image: sh4rkbyte/webserver:latest
+    container_name: webserver
     ports:
-      - "35543:80"
+      - "35543:35543"
+    restart: unless-stopped
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"
+  
+  watchtower:
+    image: containrrr/watchtower
+    container_name: watchtower
     volumes:
-      - ./:/usr/share/nginx/html
+      - /var/run/docker.sock:/var/run/docker.sock
+    command: --interval 3600 --cleanup --label-enable
     restart: unless-stopped
