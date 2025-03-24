@@ -3,23 +3,24 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>PID Controller Interface</title>
+    <title>Regulator</title>
     <style>
         body {
             font-family: Arial, sans-serif;
             max-width: 800px;
             margin: 0 auto;
             padding: 20px;
-            background-color: #f5f5f5;
+            background-color: #121212;
+            color: #e0e0e0;
         }
         .container {
-            background-color: white;
+            background-color: #1e1e1e;
             border-radius: 8px;
             padding: 20px;
-            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
         }
         h1 {
-            color: #333;
+            color: #ffffff;
             text-align: center;
         }
         .controller {
@@ -33,33 +34,57 @@
         label {
             width: 120px;
             font-weight: bold;
+            color: #bbb;
         }
         .slider {
             flex-grow: 1;
             margin: 0 20px;
+            accent-color: #2196F3;
         }
         .value {
             width: 60px;
             text-align: center;
             font-weight: bold;
-        }
-        .height-display {
-            text-align: center;
-            margin-top: 30px;
-            padding: 20px;
-            border: 1px solid #ddd;
-            border-radius: 8px;
-            background-color: #f9f9f9;
-        }
-        .height-value {
-            font-size: 48px;
-            font-weight: bold;
             color: #2196F3;
         }
+        .height-display {
+            display: flex;
+            align-items: center;
+            margin-bottom: 20px;
+            padding: 0;
+            border: none;
+            background-color: transparent;
+        }
+        .visual-indicator {
+            flex-grow: 1;
+            height: 15px;
+            margin: 0 20px;
+            background-color: #333;
+            border: 1px solid #555;
+            border-radius: 4px;
+            position: relative;
+            overflow: hidden;
+        }
+        .fill {
+            position: absolute;
+            left: 0;
+            height: 100%;
+            background-color: #2196F3;
+            transition: width 0.3s ease-out;
+        }
+        .height-value {
+            width: 60px;
+            text-align: center;
+            font-weight: bold;
+            color: #2196F3;
+            font-size: 16px;
+        }
         .height-label {
-            font-size: 18px;
-            color: #666;
-            margin-top: 10px;
+            width: 120px;
+            font-weight: bold;
+            color: #bbb;
+            text-align: left;
+            font-size: 16px;
         }
         button {
             display: block;
@@ -82,66 +107,73 @@
             font-size: 14px;
         }
         .connected {
-            color: green;
+            color: #4caf50;
         }
         .disconnected {
-            color: red;
+            color: #f44336;
         }
-        .visual-indicator {
-            width: 40px;
-            height: 200px;
-            margin: 0 auto;
-            background-color: #e0e0e0;
-            border: 1px solid #bbb;
-            border-radius: 4px;
-            position: relative;
-            overflow: hidden;
-        }
-        .fill {
+        /* New styles for connection corner */
+        .connection-corner {
             position: absolute;
-            bottom: 0;
+            top: 10px;
+            left: 10px;
+            background-color: #1e1e1e;
+            padding: 10px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+            z-index: 100;
+        }
+        .connection-corner .connection-status {
+            text-align: left;
+            margin-bottom: 5px;
+        }
+        .connection-corner button {
+            margin: 5px 0;
+            padding: 8px 16px;
+            font-size: 14px;
             width: 100%;
-            background-color: #2196F3;
-            transition: height 0.3s ease-out;
+        }
+        .homed {
+            color: #4caf50;
+        }
+        .not-homed {
+            color: #f44336;
         }
     </style>
 </head>
 <body>
-    <div class="container">
-        <h1>PID Controller Interface</h1>
-        
+    <div class="connection-corner">
         <div class="connection-status">
             <span id="status-text" class="disconnected">Disconnected</span>
         </div>
-        
         <button id="connect-button">Connect to Device</button>
+        <div class="connection-status">
+            <span id="homing-status" class="not-homed">System Not Homed</span>
+        </div>
+        <button id="set-min-button">Set Min Position</button>
+        <button id="set-max-button">Set Max Position</button>
+    </div>
+
+    <div class="container">
+        <h1>Regulator control</h1>
         
         <div class="controller">
             <div class="slider-container">
-                <label for="p-slider">P Value:</label>
-                <input type="range" id="p-slider" class="slider" min="0" max="100" value="50" step="0.1">
-                <span id="p-value" class="value">50.0</span>
+                <label for="position-slider">Set Angle [%]:</label>
+                <input type="range" id="position-slider" class="slider" min="1" max="100" value="50" step="1">
+                <span id="position-value" class="value">50</span>
             </div>
             
-            <div class="slider-container">
-                <label for="i-slider">I Value:</label>
-                <input type="range" id="i-slider" class="slider" min="0" max="100" value="20" step="0.1">
-                <span id="i-value" class="value">20.0</span>
+            <div class="height-display">
+                <label class="height-label">Current Angle [%]:</label>
+                <div class="visual-indicator">
+                    <div id="height-fill" class="fill" style="width: 0%;"></div>
+                </div>
+                <div class="height-value" id="height-percentage">0</div>
             </div>
-            
-            <div class="slider-container">
-                <label for="d-slider">D Value:</label>
-                <input type="range" id="d-slider" class="slider" min="0" max="100" value="10" step="0.1">
-                <span id="d-value" class="value">10.0</span>
-            </div>
-        </div>
-        
-        <div class="height-display">
-            <div class="visual-indicator">
-                <div id="height-fill" class="fill" style="height: 0%;"></div>
-            </div>
-            <div class="height-value" id="height-percentage">0%</div>
-            <div class="height-label">Current Height</div>
         </div>
     </div>
 
@@ -149,14 +181,13 @@
         // DOM elements
         const connectButton = document.getElementById('connect-button');
         const statusText = document.getElementById('status-text');
-        const pSlider = document.getElementById('p-slider');
-        const iSlider = document.getElementById('i-slider');
-        const dSlider = document.getElementById('d-slider');
-        const pValue = document.getElementById('p-value');
-        const iValue = document.getElementById('i-value');
-        const dValue = document.getElementById('d-value');
+        const positionSlider = document.getElementById('position-slider');
+        const positionValue = document.getElementById('position-value');
+        const homingStatus = document.getElementById('homing-status');
         const heightPercentage = document.getElementById('height-percentage');
         const heightFill = document.getElementById('height-fill');
+        const setMinButton = document.getElementById('set-min-button');
+        const setMaxButton = document.getElementById('set-max-button');
 
         // Serial port variables
         let port;
@@ -164,20 +195,20 @@
         let writer;
         let readLoopRunning = false;
 
-        // Update slider value displays
-        pSlider.addEventListener('input', () => {
-            pValue.textContent = parseFloat(pSlider.value).toFixed(1);
-            sendPIDValues();
+        // Update slider value display
+        positionSlider.addEventListener('input', () => {
+            positionValue.textContent = positionSlider.value;
+            sendPositionValue();
         });
 
-        iSlider.addEventListener('input', () => {
-            iValue.textContent = parseFloat(iSlider.value).toFixed(1);
-            sendPIDValues();
+        // Set min position
+        setMinButton.addEventListener('click', () => {
+            sendMinPosition();
         });
 
-        dSlider.addEventListener('input', () => {
-            dValue.textContent = parseFloat(dSlider.value).toFixed(1);
-            sendPIDValues();
+        // Set max position
+        setMaxButton.addEventListener('click', () => {
+            sendMaxPosition();
         });
 
         // Connect to serial port
@@ -226,8 +257,8 @@
                 // Set up the reader and writer
                 setupCommunication();
                 
-                // Send initial PID values
-                sendPIDValues();
+                // Send initial position value
+                sendPositionValue();
             } catch (error) {
                 console.error('Error connecting to serial port:', error);
                 if (error.name === 'NotFoundError') {
@@ -255,24 +286,50 @@
             }
         }
 
-        // Send PID values to the serial device
-        async function sendPIDValues() {
+        // Send position value to the serial device
+        async function sendPositionValue() {
             if (!writer) return;
             
             try {
-                const p = parseFloat(pSlider.value).toFixed(1);
-                const i = parseFloat(iSlider.value).toFixed(1);
-                const d = parseFloat(dSlider.value).toFixed(1);
+                const position = positionSlider.value;
                 
-                // Format: "PID:P,I,D" (e.g., "PID:50.0,20.0,10.0")
-                const command = `PID:${p},${i},${d}\n`;
+                // Format: "A" followed by the position value (e.g., "A50")
+                const command = `A${position}\n`;
                 const encoder = new TextEncoder();
                 const data = encoder.encode(command);
                 await writer.write(data);
                 
-                console.log('Sent PID values:', p, i, d);
+                console.log('Sent position value:', position);
             } catch (error) {
-                console.error('Error sending PID values:', error);
+                console.error('Error sending position value:', error);
+            }
+        }
+
+        // Send min position command to the serial device
+        async function sendMinPosition() {
+            if (!writer) return;
+            try {
+                const command = 'H0\n';
+                const encoder = new TextEncoder();
+                const data = encoder.encode(command);
+                await writer.write(data);
+                console.log('Sent min position command');
+            } catch (error) {
+                console.error('Error sending min position command:', error);
+            }
+        }
+
+        // Send max position command to the serial device
+        async function sendMaxPosition() {
+            if (!writer) return;
+            try {
+                const command = 'H1\n';
+                const encoder = new TextEncoder();
+                const data = encoder.encode(command);
+                await writer.write(data);
+                console.log('Sent max position command');
+            } catch (error) {
+                console.error('Error sending max position command:', error);
             }
         }
 
@@ -306,18 +363,50 @@
         function processSerialData(data) {
             // Look for height percentage data in format "HEIGHT:XX.X"
             const heightRegex = /HEIGHT:(\d+(\.\d+)?)/;
-            const match = data.match(heightRegex);
+            const heightMatch = data.match(heightRegex);
             
-            if (match) {
-                const height = parseFloat(match[1]);
+            if (heightMatch) {
+                const height = parseFloat(heightMatch[1]);
                 
                 // Update the height percentage display
                 heightPercentage.textContent = `${height.toFixed(1)}%`;
                 
-                // Update the visual indicator
-                heightFill.style.height = `${height}%`;
+                // Update the visual indicator - now horizontal
+                heightFill.style.width = `${height}%`;
                 
-                console.log('Received height percentage:', height);
+                console.log('Received angle percentage:', height);
+            }
+
+            // Look for angle data in format "AXX.X" (A followed by a number)
+            const angleRegex = /A(\d+(\.\d+)?)/;
+            const angleMatch = data.match(angleRegex);
+            
+            if (angleMatch) {
+                const angle = parseFloat(angleMatch[1]);
+                
+                // Update the height percentage display with the angle
+                heightPercentage.textContent = `${angle.toFixed(1)}%`;
+                
+                // Update the visual indicator
+                heightFill.style.width = `${angle}%`;
+                
+                console.log('Received current angle:', angle);
+            }
+
+            // Check for "H0" (min position set)
+            if (data.includes("H0")) {
+                homingStatus.textContent = "Min Position Set";
+                homingStatus.classList.remove("not-homed");
+                homingStatus.classList.add("homed");
+                console.log('Min position set');
+            }
+
+            // Check for "H1" (max position set => system homed)
+            if (data.includes("H1")) {
+                homingStatus.textContent = "System is homed";
+                homingStatus.classList.remove("not-homed");
+                homingStatus.classList.add("homed");
+                console.log('Max position set, system homed');
             }
         }
     </script>
