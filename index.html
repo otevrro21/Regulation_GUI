@@ -354,8 +354,8 @@
             try {
                 const position = positionSlider.value;
                 
-                // Format: "A" followed by the position value (e.g., "A50")
-                const command = `A${position}\n`;
+                // Format: "A:" followed by the position value (e.g., "A:50")
+                const command = `A:${position}\n`;
                 const encoder = new TextEncoder();
                 const data = encoder.encode(command);
                 await writer.write(data);
@@ -370,7 +370,7 @@
         async function sendMinPosition() {
             if (!writer) return;
             try {
-                const command = 'H0\n';
+                const command = 'H:0\n';
                 const encoder = new TextEncoder();
                 const data = encoder.encode(command);
                 await writer.write(data);
@@ -384,7 +384,7 @@
         async function sendMaxPosition() {
             if (!writer) return;
             try {
-                const command = 'H1\n';
+                const command = 'H:1\n';
                 const encoder = new TextEncoder();
                 const data = encoder.encode(command);
                 await writer.write(data);
@@ -399,16 +399,31 @@
             if (!writer) return;
             try {
                 const p = pSlider.value;
-                const i = iSlider.value;
+                const s = iSlider.value; // Variable is still named iSlider but represents S value
                 const d = dSlider.value;
                 
-                // Format: "PSD:p,i,d" followed by the values
-                const command = `PSD:${p},${i},${d}\n`;
                 const encoder = new TextEncoder();
-                const data = encoder.encode(command);
-                await writer.write(data);
                 
-                console.log('Sent PSD values:', p, i, d);
+                // Send each value separately with its own prefix
+                const pCommand = `P:${p}\n`;
+                await writer.write(encoder.encode(pCommand));
+                console.log('Sent P value:', p);
+                
+                // Small delay between commands
+                await new Promise(r => setTimeout(r, 50));
+                
+                const sCommand = `S:${s}\n`;
+                await writer.write(encoder.encode(sCommand));
+                console.log('Sent S value:', s);
+                
+                // Small delay between commands
+                await new Promise(r => setTimeout(r, 50));
+                
+                const dCommand = `D:${d}\n`;
+                await writer.write(encoder.encode(dCommand));
+                console.log('Sent D value:', d);
+                
+                console.log('All PSD values sent separately');
             } catch (error) {
                 console.error('Error sending PSD values:', error);
             }
