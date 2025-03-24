@@ -162,13 +162,13 @@
         
         <div class="controller">
             <div class="slider-container">
-                <label for="position-slider">Set Angle [%]:</label>
+                <label for="position-slider">Set Angle:</label>
                 <input type="range" id="position-slider" class="slider" min="1" max="100" value="50" step="1">
-                <span id="position-value" class="value">50</span>
+                <span id="position-value" class="value">50%</span>
             </div>
             
             <div class="height-display">
-                <label class="height-label">Current Angle [%]:</label>
+                <label class="height-label">Current Angle:</label>
                 <div class="visual-indicator">
                     <div id="height-fill" class="fill" style="width: 0%;"></div>
                 </div>
@@ -197,7 +197,7 @@
 
         // Update slider value display
         positionSlider.addEventListener('input', () => {
-            positionValue.textContent = positionSlider.value;
+            positionValue.textContent = positionSlider.value + '%';
             sendPositionValue();
         });
 
