@@ -373,7 +373,7 @@
                 port = await navigator.serial.requestPort();
                 
                 // Open the port
-                await port.open({ baudRate: 9600 });
+                await port.open({ baudRate: 115200 }); //! baudrate settings ----------------------------------
                 
                 statusText.textContent = 'Connected';
                 statusText.className = 'connected';
@@ -384,9 +384,6 @@
                 
                 // Set up the reader and writer
                 setupCommunication();
-                
-                // Send initial position value
-                sendPositionValue();
             } catch (error) {
                 console.error('Error connecting to serial port:', error);
                 if (error.name === 'NotFoundError') {
