@@ -310,6 +310,56 @@
             padding: 8px 16px;
             font-size: 14px;
         }
+        
+        /* Styles for the live graph container */
+        .graph-container {
+            margin-top: 30px;
+            background-color: #252525;
+            border-radius: 6px;
+            padding: 15px;
+            height: 300px;
+            position: relative;
+        }
+        
+        .graph-container h3 {
+            margin-top: 0;
+            margin-bottom: 15px;
+            color: #ddd;
+            text-align: center;
+        }
+        
+        .graph-canvas-container {
+            height: 250px;
+            width: 100%;
+        }
+        
+        #graph-legend {
+            display: flex;
+            justify-content: center;
+            margin-top: 10px;
+        }
+        
+        .legend-item {
+            display: flex;
+            align-items: center;
+            margin: 0 15px;
+        }
+        
+        .legend-color {
+            width: 15px;
+            height: 15px;
+            display: inline-block;
+            margin-right: 5px;
+            border-radius: 3px;
+        }
+        
+        .target-color {
+            background-color: #2196F3;
+        }
+        
+        .actual-color {
+            background-color: #4caf50;
+        }
     </style>
 </head>
 <body>
@@ -367,9 +417,28 @@
                 <div class="height-value" id="height-percentage">0%</div>
             </div>
             
-            <!-- Remove the pid-controls section from here since we moved it to the corner -->
+            <!-- Live Graph Container -->
+            <div class="graph-container">
+                <h3>Live Angle Data</h3>
+                <div class="graph-canvas-container">
+                    <canvas id="angleChart"></canvas>
+                </div>
+                <div id="graph-legend">
+                    <div class="legend-item">
+                        <div class="legend-color target-color"></div>
+                        <div>Target Angle</div>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-color actual-color"></div>
+                        <div>Actual Angle</div>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
+
+    <!-- Add Chart.js library -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
     <script>
         // DOM elements
@@ -394,6 +463,92 @@
         let writer;
         let readLoopRunning = false;
 
+        // Chart variables
+        let angleChart;
+        const dataPoints = 50; // Number of points to show on the graph
+        const targetData = Array(dataPoints).fill(0);
+        const actualData = Array(dataPoints).fill(0);
+        const timeLabels = Array(dataPoints).fill('');
+        
+        // Initialize the chart when the page loads
+        document.addEventListener('DOMContentLoaded', initChart);
+        
+        function initChart() {
+            const ctx = document.getElementById('angleChart').getContext('2d');
+            angleChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: timeLabels,
+                    datasets: [
+                        {
+                            label: 'Target Angle',
+                            data: targetData,
+                            borderColor: '#2196F3',
+                            backgroundColor: 'rgba(33, 150, 243, 0.1)',
+                            borderWidth: 2,
+                            tension: 0.3,
+                            fill: false,
+                            pointRadius: 0 // Remove points from the line
+                        },
+                        {
+                            label: 'Actual Angle',
+                            data: actualData,
+                            borderColor: '#4caf50',
+                            backgroundColor: 'rgba(76, 175, 80, 0.1)',
+                            borderWidth: 2,
+                            tension: 0.3,
+                            fill: false,
+                            pointRadius: 0 // Remove points from the line
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    animation: {
+                        duration: 0 // Disable animation for better performance
+                    },
+                    scales: {
+                        x: {
+                            display: false // Hide x-axis labels for cleaner look
+                        },
+                        y: {
+                            beginAtZero: true,
+                            max: 130, // Increase maximum to 130%
+                            ticks: {
+                                color: '#bbb'
+                            },
+                            grid: {
+                                color: 'rgba(255, 255, 255, 0.1)'
+                            }
+                        }
+                    },
+                    plugins: {
+                        legend: {
+                            display: false // Hide default legend, we'll use our custom one
+                        },
+                        tooltip: {
+                            mode: 'index',
+                            intersect: false
+                        }
+                    }
+                }
+            });
+        }
+        
+        // Function to update the chart with new data
+        function updateChart(targetValue, actualValue) {
+            // Shift data arrays to make room for new data
+            targetData.push(targetValue);
+            targetData.shift();
+            
+            actualData.push(actualValue);
+            actualData.shift();
+            
+            // Update the chart
+            angleChart.update();
+        }
+
         // Update slider value display during dragging (but don't send value)
         positionSlider.addEventListener('input', () => {
             positionValue.textContent = positionSlider.value + '%';
@@ -402,6 +557,8 @@
         // Send the position value when the user releases the slider
         positionSlider.addEventListener('change', () => {
             sendPositionValue();
+            // Update target value in the chart
+            updateChart(parseInt(positionSlider.value), actualData[actualData.length - 1]);
         });
 
         // Add input validation for PSD values
@@ -672,11 +829,14 @@
                 // Update the visual indicator - now horizontal
                 heightFill.style.width = `${height}%`;
                 
+                // Update the chart with actual value
+                updateChart(targetData[targetData.length - 1], height);
+                
                 console.log('Received angle percentage:', height);
             }
 
-            // Look for angle data in format "AXX.X" (A followed by a number)
-            const angleRegex = /A(\d+(\.\d+)?)/;
+            // Look for angle data in format "A:XX.X" (A followed by colon and then a number)
+            const angleRegex = /A:(\d+(\.\d+)?)/;
             const angleMatch = data.match(angleRegex);
             
             if (angleMatch) {
@@ -688,32 +848,35 @@
                 // Update the visual indicator
                 heightFill.style.width = `${angle}%`;
                 
+                // Update the chart with actual value
+                updateChart(targetData[targetData.length - 1], angle);
+                
                 console.log('Received current angle:', angle);
             }
 
-            // Check for "H0" (min position set)
-            if (data.includes("H0")) {
+            // Check for "H:0" (min position set)
+            if (data.includes("H:0")) {
                 homingStatus.textContent = "Min Position Set";
                 homingStatus.classList.remove("not-homed");
                 homingStatus.classList.add("homed");
                 console.log('Min position set');
             }
 
-            // Check for "H1" (max position set => system homed)
-            if (data.includes("H1")) {
+            // Check for "H:1" (max position set => system homed)
+            if (data.includes("H:1")) {
                 homingStatus.textContent = "System is homed";
                 homingStatus.classList.remove("not-homed");
                 homingStatus.classList.add("homed");
                 console.log('Max position set, system homed');
             }
 
-            // Check for motor status updates (Z0 or Z1)
-            if (data.includes("Z0")) {
+            // Check for motor status updates (Z:0 or Z:1)
+            if (data.includes("Z:0")) {
                 motorSwitch.checked = false;
                 console.log('Motor status: OFF');
             }
             
-            if (data.includes("Z1")) {
+            if (data.includes("Z:1")) {
                 motorSwitch.checked = true;
                 console.log('Motor status: ON');
             }
