@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Regulator</title>
+    <link rel="icon" type="image/x-icon" href="https://assets.blahaj.land/pictures/favicon.png">
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -12,7 +13,23 @@
             padding: 20px;
             background-color: #121212;
             color: #e0e0e0;
+            position: relative;
         }
+        
+        body::before {
+            content: "";
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-image: url('https://assets.blahaj.land/pictures/backgrounds/waves-horizontal.png');
+            background-size: cover;
+            background-position: center;
+            opacity: 0.3;
+            z-index: -1;
+        }
+        
         .container {
             background-color: #1e1e1e;
             border-radius: 8px;
@@ -92,11 +109,51 @@
             padding: 15px;
             background-color: #252525;
             border-radius: 6px;
+            display: flex;
+            justify-content: flex-end;
         }
         .pid-controls h3 {
             margin-top: 0;
             margin-bottom: 15px;
             color: #ddd;
+        }
+        .pid-inputs {
+            width: 300px;
+        }
+        .input-container {
+            display: flex;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+        .input-container label {
+            width: 80px;
+            font-weight: bold;
+            color: #bbb;
+            text-align: right;
+            margin-right: 15px;
+        }
+        .input-container input[type="number"] {
+            width: 80px;
+            background-color: #333;
+            border: 1px solid #555;
+            color: #2196F3;
+            padding: 8px;
+            border-radius: 4px;
+            font-weight: bold;
+            text-align: center;
+        }
+        .input-container input[type="number"]:focus {
+            outline: none;
+            border-color: #2196F3;
+        }
+        /* Hide spinner buttons on number inputs */
+        .input-container input[type="number"]::-webkit-inner-spin-button, 
+        .input-container input[type="number"]::-webkit-outer-spin-button { 
+            -webkit-appearance: none; 
+            margin: 0; 
+        }
+        .input-container input[type="number"] {
+            -moz-appearance: textfield;
         }
         button {
             display: block;
@@ -126,9 +183,9 @@
         }
         /* New styles for connection corner */
         .connection-corner {
-            position: absolute;
-            top: 10px;
-            left: 10px;
+            position: fixed;
+            top: 20px;
+            left: 20px;
             background-color: #1e1e1e;
             padding: 10px;
             border-radius: 8px;
@@ -137,6 +194,7 @@
             flex-direction: column;
             align-items: flex-start;
             z-index: 100;
+            width: 220px;
         }
         .connection-corner .connection-status {
             text-align: left;
@@ -206,6 +264,52 @@
         input:checked + .slider-switch:before {
             transform: translateX(26px);
         }
+        /* New styles for PSD corner panel */
+        .psd-corner {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background-color: #1e1e1e;
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+            z-index: 100;
+            width: 220px;
+        }
+        .psd-corner h3 {
+            margin-top: 0;
+            margin-bottom: 15px;
+            color: #ddd;
+            text-align: center;
+        }
+        .psd-corner .input-container {
+            display: flex;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+        .psd-corner .input-container label {
+            width: 80px;
+            font-weight: bold;
+            color: #bbb;
+            text-align: left;
+        }
+        .psd-corner .input-container input[type="number"] {
+            width: 80px;
+            background-color: #333;
+            border: 1px solid #555;
+            color: #2196F3;
+            padding: 8px;
+            border-radius: 4px;
+            font-weight: bold;
+            text-align: center;
+            margin-left: auto;
+        }
+        .psd-corner button {
+            width: 100%;
+            margin: 5px 0;
+            padding: 8px 16px;
+            font-size: 14px;
+        }
     </style>
 </head>
 <body>
@@ -228,14 +332,31 @@
         </div>
     </div>
 
+    <div class="psd-corner">
+        <h3>PSD Parameters</h3>
+        <div class="input-container">
+            <label for="p-input">P value:</label>
+            <input type="number" id="p-input" min="0" max="200" value="0">
+        </div>
+        <div class="input-container">
+            <label for="s-input">S value:</label>
+            <input type="number" id="s-input" min="0" max="200" value="0">
+        </div>
+        <div class="input-container">
+            <label for="d-input">D value:</label>
+            <input type="number" id="d-input" min="0" max="200" value="0">
+        </div>
+        <button id="send-pid-button">Apply PSD Values</button>
+    </div>
+
     <div class="container">
         <h1>Regulator control</h1>
         
         <div class="controller">
             <div class="slider-container">
                 <label for="position-slider">Set Angle:</label>
-                <input type="range" id="position-slider" class="slider" min="1" max="100" value="50" step="1">
-                <span id="position-value" class="value">50%</span>
+                <input type="range" id="position-slider" class="slider" min="1" max="100" value="0" step="1">
+                <span id="position-value" class="value">0%</span>
             </div>
             
             <div class="height-display">
@@ -243,28 +364,10 @@
                 <div class="visual-indicator">
                     <div id="height-fill" class="fill" style="width: 0%;"></div>
                 </div>
-                <div class="height-value" id="height-percentage">0</div>
+                <div class="height-value" id="height-percentage">0%</div>
             </div>
             
-            <div class="pid-controls">
-                <h3>PSD Parameters</h3>
-                <div class="slider-container">
-                    <label for="p-slider">P value:</label>
-                    <input type="range" id="p-slider" class="slider" min="0" max="100" value="0" step="1">
-                    <span id="p-value" class="value">0</span>
-                </div>
-                <div class="slider-container">
-                    <label for="s-slider">S value:</label>
-                    <input type="range" id="s-slider" class="slider" min="0" max="100" value="0" step="1">
-                    <span id="s-value" class="value">0</span>
-                </div>
-                <div class="slider-container">
-                    <label for="d-slider">D value:</label>
-                    <input type="range" id="d-slider" class="slider" min="0" max="100" value="0" step="1">
-                    <span id="d-value" class="value">0</span>
-                </div>
-                <button id="send-pid-button">Apply PSD Values</button>
-            </div>
+            <!-- Remove the pid-controls section from here since we moved it to the corner -->
         </div>
     </div>
 
@@ -280,12 +383,9 @@
         const setMinButton = document.getElementById('set-min-button');
         const setMaxButton = document.getElementById('set-max-button');
         const motorSwitch = document.getElementById('motor-switch');
-        const pSlider = document.getElementById('p-slider');
-        const iSlider = document.getElementById('s-slider');
-        const dSlider = document.getElementById('d-slider');
-        const pValue = document.getElementById('p-value');
-        const iValue = document.getElementById('s-value');
-        const dValue = document.getElementById('d-value');
+        const pInput = document.getElementById('p-input');
+        const sInput = document.getElementById('s-input');
+        const dInput = document.getElementById('d-input');
         const sendPidButton = document.getElementById('send-pid-button');
 
         // Serial port variables
@@ -304,18 +404,29 @@
             sendPositionValue();
         });
 
-        // Update PID value displays
-        pSlider.addEventListener('input', () => {
-            pValue.textContent = pSlider.value;
-        });
+        // Add input validation for PSD values
+        pInput.addEventListener('input', () => validateInput(pInput, 0, 200));
+        sInput.addEventListener('input', () => validateInput(sInput, 0, 200));
+        dInput.addEventListener('input', () => validateInput(dInput, 0, 200));
 
-        iSlider.addEventListener('input', () => {
-            iValue.textContent = iSlider.value;
-        });
-
-        dSlider.addEventListener('input', () => {
-            dValue.textContent = dSlider.value;
-        });
+        // Validate input to stay within min-max range
+        function validateInput(inputElement, min, max) {
+            let value = parseInt(inputElement.value);
+            
+            // Handle empty input
+            if (inputElement.value === '') {
+                return;
+            }
+            
+            // Enforce min/max constraints
+            if (isNaN(value)) {
+                inputElement.value = min;
+            } else if (value < min) {
+                inputElement.value = min;
+            } else if (value > max) {
+                inputElement.value = max;
+            }
+        }
 
         // Send PSD values button
         sendPidButton.addEventListener('click', () => {
@@ -462,9 +573,9 @@
         async function sendPsdValues() {
             if (!writer) return;
             try {
-                const p = pSlider.value;
-                const s = iSlider.value; // Variable is still named iSlider but represents S value
-                const d = dSlider.value;
+                const p = pInput.value;
+                const s = sInput.value;
+                const d = dInput.value;
                 
                 const encoder = new TextEncoder();
                 
