@@ -360,6 +360,63 @@
         .actual-color {
             background-color: #4caf50;
         }
+        
+        /* Styles for data export controls */
+        .data-controls {
+            margin-top: 10px;
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+        }
+        
+        .export-button {
+            padding: 8px 16px;
+            background-color: #2196F3;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+        
+        .export-button:hover {
+            background-color: #0b7dda;
+        }
+        
+        .data-status {
+            font-size: 14px;
+            color: #bbb;
+            text-align: center;
+            margin-top: 5px;
+        }
+
+        /* Styles for the view window slider */
+        .view-control {
+            display: flex;
+            align-items: center;
+            margin-top: 10px;
+            gap: 10px;
+        }
+        
+        .view-slider {
+            flex-grow: 1;
+            accent-color: #2196F3;
+        }
+        
+        .view-label {
+            font-size: 14px;
+            color: #bbb;
+            white-space: nowrap;
+        }
+        
+        .view-value {
+            font-size: 14px;
+            color: #2196F3;
+            font-weight: bold;
+            white-space: nowrap;
+            min-width: 70px;
+            text-align: center;
+        }
     </style>
 </head>
 <body>
@@ -433,6 +490,17 @@
                         <div>Actual Angle</div>
                     </div>
                 </div>
+                <!-- View window control -->
+                <div class="view-control">
+                    <span class="view-label">View window:</span>
+                    <input type="range" id="view-slider" class="view-slider" min="10" max="1000" value="100" step="10">
+                    <span id="view-value" class="view-value">100 points</span>
+                </div>
+                <!-- Data export controls -->
+                <div class="data-controls">
+                    <button id="export-csv" class="export-button">Export Data to CSV</button>
+                </div>
+                <div class="data-status" id="data-points-count">Data points: 0</div>
             </div>
         </div>
     </div>
@@ -456,6 +524,10 @@
         const sInput = document.getElementById('s-input');
         const dInput = document.getElementById('d-input');
         const sendPidButton = document.getElementById('send-pid-button');
+        const exportCsvButton = document.getElementById('export-csv');
+        const dataPointsCount = document.getElementById('data-points-count');
+        const viewSlider = document.getElementById('view-slider');
+        const viewValue = document.getElementById('view-value');
 
         // Serial port variables
         let port;
@@ -465,13 +537,58 @@
 
         // Chart variables
         let angleChart;
-        const dataPoints = 50; // Number of points to show on the graph
-        const targetData = Array(dataPoints).fill(0);
-        const actualData = Array(dataPoints).fill(0);
-        const timeLabels = Array(dataPoints).fill('');
+        let viewWindowSize = 100; // Default number of points to show on the graph, configurable up to 1000
+        
+        // Full data storage arrays - with capacity for much larger datasets
+        const fullTargetData = [];
+        const fullActualData = [];
+        const fullTimeData = [];
+        
+        // Display data (window of the full data)
+        let targetData = Array(viewWindowSize).fill(0);
+        let actualData = Array(viewWindowSize).fill(0);
+        let timeLabels = Array(viewWindowSize).fill('');
         
         // Initialize the chart when the page loads
         document.addEventListener('DOMContentLoaded', initChart);
+        
+        // Add view window slider listener
+        viewSlider.addEventListener('input', function() {
+            viewWindowSize = parseInt(this.value);
+            viewValue.textContent = `${viewWindowSize} points`;
+            
+            // Update the arrays for the chart
+            updateDisplayArrays();
+            
+            // Rebuild the chart with new window size
+            angleChart.update();
+        });
+        
+        // Function to update the display arrays based on window size
+        function updateDisplayArrays() {
+            // Create new arrays with the right size
+            targetData = Array(viewWindowSize).fill(0);
+            actualData = Array(viewWindowSize).fill(0);
+            timeLabels = Array(viewWindowSize).fill('');
+            
+            // If we have data, populate the arrays
+            if (fullTargetData.length > 0) {
+                const dataLength = Math.min(viewWindowSize, fullTargetData.length);
+                const startIndex = Math.max(0, fullTargetData.length - dataLength);
+                
+                for (let i = 0; i < dataLength; i++) {
+                    const fullIndex = startIndex + i;
+                    targetData[i] = fullTargetData[fullIndex];
+                    actualData[i] = fullActualData[fullIndex];
+                    timeLabels[i] = i.toString();
+                }
+            }
+            
+            // Update the chart datasets
+            angleChart.data.labels = timeLabels;
+            angleChart.data.datasets[0].data = targetData;
+            angleChart.data.datasets[1].data = actualData;
+        }
         
         function initChart() {
             const ctx = document.getElementById('angleChart').getContext('2d');
@@ -538,15 +655,56 @@
         
         // Function to update the chart with new data
         function updateChart(targetValue, actualValue) {
-            // Shift data arrays to make room for new data
-            targetData.push(targetValue);
-            targetData.shift();
+            // Add timestamp
+            const timestamp = new Date().toISOString();
             
-            actualData.push(actualValue);
-            actualData.shift();
+            // Store in full data arrays
+            fullTargetData.push(targetValue);
+            fullActualData.push(actualValue);
+            fullTimeData.push(timestamp);
+            
+            // Update data points count display
+            dataPointsCount.textContent = `Data points: ${fullTargetData.length}`;
+            
+            // Update display arrays based on current window size
+            updateDisplayArrays();
             
             // Update the chart
             angleChart.update();
+        }
+
+        // Export data to CSV - modified to include all data points
+        exportCsvButton.addEventListener('click', exportToCsv);
+        
+        function exportToCsv() {
+            if (fullTargetData.length === 0) {
+                alert('No data to export');
+                return;
+            }
+            
+            // Create CSV content
+            let csvContent = 'Timestamp,Target Angle,Actual Angle\n';
+            
+            for (let i = 0; i < fullTargetData.length; i++) {
+                csvContent += `${fullTimeData[i]},${fullTargetData[i]},${fullActualData[i]}\n`;
+            }
+            
+            // Create a blob with the CSV data
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            
+            // Create a download link
+            const link = document.createElement('a');
+            const url = URL.createObjectURL(blob);
+            
+            // Set up the download
+            link.setAttribute('href', url);
+            link.setAttribute('download', `angle_data_${new Date().toISOString().replace(/:/g, '-')}.csv`);
+            link.style.visibility = 'hidden';
+            
+            // Add to document, click and remove
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
         }
 
         // Update slider value display during dragging (but don't send value)
@@ -687,6 +845,7 @@
                 const position = positionSlider.value;
                 
                 // Format: "A:" followed by the position value (e.g., "A:50")
+                // Always ensure a newline at the end
                 const command = `A:${position}\n`;
                 const encoder = new TextEncoder();
                 const data = encoder.encode(command);
@@ -702,6 +861,7 @@
         async function sendMinPosition() {
             if (!writer) return;
             try {
+                // Ensure newline at the end
                 const command = 'H:0\n';
                 const encoder = new TextEncoder();
                 const data = encoder.encode(command);
@@ -716,6 +876,7 @@
         async function sendMaxPosition() {
             if (!writer) return;
             try {
+                // Ensure newline at the end
                 const command = 'H:1\n';
                 const encoder = new TextEncoder();
                 const data = encoder.encode(command);
@@ -736,7 +897,7 @@
                 
                 const encoder = new TextEncoder();
                 
-                // Send each value separately with its own prefix
+                // Send each value separately with its own prefix, ensuring newline at the end
                 const pCommand = `P:${p}\n`;
                 await writer.write(encoder.encode(pCommand));
                 console.log('Sent P value:', p);
@@ -771,7 +932,7 @@
             if (!writer) return;
             
             try {
-                // Send Z:1 for on, Z:0 for off
+                // Send Z:1 for on, Z:0 for off, ensuring newline at the end
                 const command = `Z:${isOn ? '1' : '0'}\n`;
                 const encoder = new TextEncoder();
                 const data = encoder.encode(command);
@@ -788,6 +949,9 @@
             }
         }
 
+        // Read data buffer for serial communication
+        let dataBuffer = '';
+
         // Read data from the serial device
         async function readLoop() {
             while (port && readLoopRunning) {
@@ -799,9 +963,14 @@
                         break;
                     }
                     
-                    // Process the received data
+                    // Decode the received data
                     const text = new TextDecoder().decode(value);
-                    processSerialData(text);
+                    
+                    // Add to buffer
+                    dataBuffer += text;
+                    
+                    // Process complete lines in the buffer
+                    processSerialBuffer();
                 } catch (error) {
                     console.error('Error reading from serial port:', error);
                     if (readLoopRunning) {
@@ -812,6 +981,23 @@
                     }
                 }
             }
+        }
+        
+        // Process complete lines from the data buffer
+        function processSerialBuffer() {
+            // Split the buffer by newline characters
+            const lines = dataBuffer.split('\n');
+            
+            // Process all complete lines (all except the last one)
+            for (let i = 0; i < lines.length - 1; i++) {
+                const line = lines[i].trim();
+                if (line.length > 0) {
+                    processSerialData(line);
+                }
+            }
+            
+            // Keep the last incomplete line in the buffer
+            dataBuffer = lines[lines.length - 1];
         }
 
         // Process data received from the serial device
@@ -830,7 +1016,7 @@
                 heightFill.style.width = `${height}%`;
                 
                 // Update the chart with actual value
-                updateChart(targetData[targetData.length - 1], height);
+                updateChart(targetData[targetData.length - 1] || fullTargetData[fullTargetData.length - 1] || 0, height);
                 
                 console.log('Received angle percentage:', height);
             }
@@ -849,7 +1035,7 @@
                 heightFill.style.width = `${angle}%`;
                 
                 // Update the chart with actual value
-                updateChart(targetData[targetData.length - 1], angle);
+                updateChart(targetData[targetData.length - 1] || fullTargetData[fullTargetData.length - 1] || 0, angle);
                 
                 console.log('Received current angle:', angle);
             }
