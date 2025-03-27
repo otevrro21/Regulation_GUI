@@ -132,6 +132,13 @@
             text-align: right;
             margin-right: 15px;
         }
+        /* Hide spinner buttons on number inputs */
+        .input-container input[type="number"]::-webkit-inner-spin-button, 
+        .input-container input[type="number"]::-webkit-outer-spin-button { 
+            -webkit-appearance: none; 
+            margin: 0; 
+        }
+        /* Consolidated styles for number inputs */
         .input-container input[type="number"] {
             width: 80px;
             background-color: #333;
@@ -141,19 +148,11 @@
             border-radius: 4px;
             font-weight: bold;
             text-align: center;
+            -moz-appearance: textfield; /* Firefox */
         }
         .input-container input[type="number"]:focus {
             outline: none;
             border-color: #2196F3;
-        }
-        /* Hide spinner buttons on number inputs */
-        .input-container input[type="number"]::-webkit-inner-spin-button, 
-        .input-container input[type="number"]::-webkit-outer-spin-button { 
-            -webkit-appearance: none; 
-            margin: 0; 
-        }
-        .input-container input[type="number"] {
-            -moz-appearance: textfield;
         }
         button {
             display: block;
@@ -417,6 +416,24 @@
             min-width: 70px;
             text-align: center;
         }
+
+        /* Remove the floating label style and replace with subtle link style */
+        .copilot-link {
+            position: fixed;
+            bottom: 10px;
+            right: 10px;
+            color: #666;
+            font-size: 12px;
+            text-decoration: none;
+            z-index: 100;
+            opacity: 0.7;
+            transition: opacity 0.2s;
+        }
+        
+        .copilot-link:hover {
+            opacity: 1;
+            color: #2196F3;
+        }
     </style>
 </head>
 <body>
@@ -505,6 +522,9 @@
         </div>
     </div>
 
+    <!-- Replace the GitHub Copilot floating label with a subtle link -->
+    <a href="https://github.com/features/copilot" target="_blank" class="copilot-link">Made with GitHub Copilot</a>
+
     <!-- Add Chart.js library -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
@@ -534,6 +554,10 @@
         let reader;
         let writer;
         let readLoopRunning = false;
+        
+        // Connection monitoring variables
+        let lastDataReceived = 0;
+        let connectionTimeoutMs = 10000; // Consider connection stale after 10 seconds without data
 
         // Chart variables
         let angleChart;
@@ -758,30 +782,12 @@
             sendMaxPosition();
         });
 
-        // Connect to serial port
+        // Connect to serial port - updated for better disconnection detection
         connectButton.addEventListener('click', async () => {
             if (port) {
                 // Disconnect if already connected
                 try {
-                    if (reader) {
-                        await reader.cancel();
-                        reader = null;
-                    }
-                    if (writer) {
-                        await writer.close();
-                        writer = null;
-                    }
-                    await port.close();
-                    port = null;
-                    
-                    statusText.textContent = 'Disconnected';
-                    statusText.className = 'disconnected';
-                    connectButton.textContent = 'Connect to Device';
-                    readLoopRunning = false;
-                    
-                    // Disable and reset motor switch
-                    motorSwitch.disabled = true;
-                    motorSwitch.checked = false;
+                    await disconnectFromDevice();
                 } catch (error) {
                     console.error('Error disconnecting:', error);
                 }
@@ -819,6 +825,55 @@
                 }
             }
         });
+        
+        // Proper disconnection from device
+        async function disconnectFromDevice() {
+            if (!port) return;
+            
+            try {
+                console.log('Disconnecting from device');
+                
+                readLoopRunning = false;
+                
+                if (reader) {
+                    await reader.cancel().catch(e => console.error('Error canceling reader:', e));
+                    reader = null;
+                }
+                
+                if (writer) {
+                    await writer.close().catch(e => console.error('Error closing writer:', e));
+                    writer = null;
+                }
+                
+                await port.close().catch(e => console.error('Error closing port:', e));
+                port = null;
+                
+                // Update UI
+                statusText.textContent = 'Disconnected';
+                statusText.className = 'disconnected';
+                connectButton.textContent = 'Connect to Device';
+                
+                // Disable and reset motor switch
+                motorSwitch.disabled = true;
+                motorSwitch.checked = false;
+                
+                // Reset homing status
+                homingStatus.textContent = "System Not Homed";
+                homingStatus.classList.remove("homed");
+                homingStatus.classList.add("not-homed");
+                
+                console.log('Successfully disconnected from device');
+            } catch (error) {
+                console.error('Error during disconnect process:', error);
+                // Force UI update even if disconnect had errors
+                statusText.textContent = 'Disconnected';
+                statusText.className = 'disconnected';
+                connectButton.textContent = 'Connect to Device';
+                port = null;
+                reader = null;
+                writer = null;
+            }
+        }
 
         // Set up communication with the serial device
         async function setupCommunication() {
@@ -826,6 +881,9 @@
                 // Create reader and writer
                 writer = port.writable.getWriter();
                 reader = port.readable.getReader();
+                
+                // Record that we received a response (setup counts as a response)
+                lastDataReceived = Date.now();
                 
                 // Start the read loop
                 readLoopRunning = true;
@@ -952,7 +1010,7 @@
         // Read data buffer for serial communication
         let dataBuffer = '';
 
-        // Read data from the serial device
+        // Read data from the serial device - improved error handling
         async function readLoop() {
             while (port && readLoopRunning) {
                 try {
@@ -960,8 +1018,13 @@
                     
                     if (done) {
                         // Reader has been canceled
+                        console.log('Reader signaled done, exiting read loop');
+                        await disconnectFromDevice();
                         break;
                     }
+                    
+                    // Update last data received timestamp
+                    lastDataReceived = Date.now();
                     
                     // Decode the received data
                     const text = new TextDecoder().decode(value);
@@ -973,14 +1036,31 @@
                     processSerialBuffer();
                 } catch (error) {
                     console.error('Error reading from serial port:', error);
-                    if (readLoopRunning) {
-                        // Wait a bit before trying again
+                    
+                    // Check for specific disconnection error patterns
+                    if (
+                        error.name === 'NetworkError' || 
+                        error.message.includes('device has been lost') ||
+                        error.message.includes('device is no longer accessible') ||
+                        error.message.includes('port is closed') ||
+                        error.message.includes('connection was closed')
+                    ) {
+                        console.error('Detected device disconnection');
+                        await disconnectFromDevice();
+                        break;
+                    }
+                    
+                    if (readLoopRunning && port) {
+                        // For other errors, wait a bit and try again if we're still supposed to be reading
+                        console.log('Waiting before retry...');
                         await new Promise(r => setTimeout(r, 1000));
                     } else {
                         break;
                     }
                 }
             }
+            
+            console.log('Exited read loop');
         }
         
         // Process complete lines from the data buffer
@@ -1000,8 +1080,11 @@
             dataBuffer = lines[lines.length - 1];
         }
 
-        // Process data received from the serial device
+        // Process data received from the serial device - handle ping response
         function processSerialData(data) {
+            // We received some data, so update the last response time
+            lastDataReceived = Date.now();
+            
             // Look for height percentage data in format "HEIGHT:XX.X"
             const heightRegex = /HEIGHT:(\d+(\.\d+)?)/;
             const heightMatch = data.match(heightRegex);
