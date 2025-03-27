@@ -426,3 +426,14 @@ input:checked + .slider-switch:before {
     opacity: 1;
     color: #2196F3;
 }
+
+/* Style for version number in bottom left corner */
+.version-number {
+    position: fixed;
+    bottom: 10px;
+    left: 10px;
+    color: #666;
+    font-size: 12px;
+    z-index: 100;
+    opacity: 0.7;
+}
