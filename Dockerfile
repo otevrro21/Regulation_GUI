@@ -1,6 +1,7 @@
 FROM nginx:alpine
 
-COPY index.html /usr/share/nginx/html/index.html
+# Copy HTML, CSS, JS and other web files but not Dockerfile and docker-compose.yml
+COPY *.html *.css *.js /usr/share/nginx/html/
 
 EXPOSE 35543
 
