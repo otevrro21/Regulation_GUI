@@ -212,6 +212,69 @@ positionSlider.addEventListener('change', () => {
     updateChart(parseInt(positionSlider.value), actualData[actualData.length - 1]);
 });
 
+// Add keypress event listeners to send PSD values when Enter key is pressed
+pInput.addEventListener('keypress', function(event) {
+    if (event.key === 'Enter') {
+        event.preventDefault(); // Prevent form submission if inside a form
+        sendPsdValues();
+        sInput.focus(); // Move focus to next input
+    }
+});
+
+sInput.addEventListener('keypress', function(event) {
+    if (event.key === 'Enter') {
+        event.preventDefault(); // Prevent form submission if inside a form
+        sendPsdValues();
+        dInput.focus(); // Move focus to next input
+    }
+});
+
+dInput.addEventListener('keypress', function(event) {
+    if (event.key === 'Enter') {
+        event.preventDefault(); // Prevent form submission if inside a form
+        sendPsdValues();
+        dInput.blur(); // Remove focus
+    }
+});
+
+// Add focus event listeners to clear default "0" value when user starts typing
+pInput.addEventListener('focus', function() {
+    if (this.value === '0') {
+        this.value = '';
+    }
+});
+
+sInput.addEventListener('focus', function() {
+    if (this.value === '0') {
+        this.value = '';
+    }
+});
+
+dInput.addEventListener('focus', function() {
+    if (this.value === '0') {
+        this.value = '';
+    }
+});
+
+// Add blur (unfocus) event listeners to restore "0" if left empty
+pInput.addEventListener('blur', function() {
+    if (this.value === '') {
+        this.value = '0';
+    }
+});
+
+sInput.addEventListener('blur', function() {
+    if (this.value === '') {
+        this.value = '0';
+    }
+});
+
+dInput.addEventListener('blur', function() {
+    if (this.value === '') {
+        this.value = '0';
+    }
+});
+
 // Add input validation for PSD values
 pInput.addEventListener('input', () => validateInput(pInput, 0, 200));
 sInput.addEventListener('input', () => validateInput(sInput, 0, 200));
