@@ -6,10 +6,21 @@ on:
     paths:
       - 'Dockerfile'
       - 'index.html'
+      - 'styles.css'
+      - 'script.js'
+  pull_request:
+    types: [closed]
+    branches: [ master ]
+    paths:
+      - 'Dockerfile'
+      - 'index.html'
+      - 'styles.css'
+      - 'script.js'
 
 jobs:
   build:
     runs-on: ubuntu-latest
+    if: github.event_name != 'pull_request' || github.event.pull_request.merged == true
     
     steps:
       - name: Checkout code
