@@ -6,8 +6,7 @@ const positionValue = document.getElementById('position-value');
 const homingStatus = document.getElementById('homing-status');
 const heightPercentage = document.getElementById('height-percentage');
 const heightFill = document.getElementById('height-fill');
-const setMinButton = document.getElementById('set-min-button');
-const setMaxButton = document.getElementById('set-max-button');
+const setPositionButton = document.getElementById('set-position-button');
 const motorSwitch = document.getElementById('motor-switch');
 const pInput = document.getElementById('p-input');
 const sInput = document.getElementById('s-input');
@@ -45,8 +44,7 @@ let actualData = Array(viewWindowSize).fill(0);
 let timeLabels = Array(viewWindowSize).fill('');
 
 // Homing status tracking variables
-let minPositionSet = false;
-let maxPositionSet = false;
+let currentHomingStep = 0; // 0: Not started, 1: Min set (waiting for max), 2: Fully homed
 
 // Initialize the chart when the page loads
 document.addEventListener('DOMContentLoaded', initChart);
@@ -316,14 +314,13 @@ sendPidButton.addEventListener('click', () => {
     sendPsdValues();
 });
 
-// Set min position
-setMinButton.addEventListener('click', () => {
-    sendMinPosition();
-});
-
-// Set max position
-setMaxButton.addEventListener('click', () => {
-    sendMaxPosition();
+// Set position button (changes function based on current step)
+setPositionButton.addEventListener('click', () => {
+    if (currentHomingStep === 0) {
+        sendMinPosition();
+    } else if (currentHomingStep === 1) {
+        sendMaxPosition();
+    }
 });
 
 // Connect to serial port - updated for better disconnection detection
@@ -357,6 +354,9 @@ connectButton.addEventListener('click', async () => {
         
         // Set up the reader and writer first
         await setupCommunication();
+        
+        // Add a 1-second delay before sending handshake
+        await new Promise(resolve => setTimeout(resolve, 1000));
         
         // Send handshake character to device
         await sendHandshake();
@@ -406,8 +406,7 @@ async function disconnectFromDevice() {
         
         readLoopRunning = false;
         handshakeCompleted = false;
-        minPositionSet = false;
-        maxPositionSet = false;
+        currentHomingStep = 0;
         
         if (handshakeTimeout) {
             clearTimeout(handshakeTimeout);
@@ -440,6 +439,10 @@ async function disconnectFromDevice() {
         homingStatus.textContent = "System Not Homed";
         homingStatus.classList.remove("homed");
         homingStatus.classList.add("not-homed");
+        
+        // Reset position button
+        setPositionButton.textContent = "Set Min Position";
+        setPositionButton.disabled = true;
         
         console.log('Successfully disconnected from device');
     } catch (error) {
@@ -685,8 +688,9 @@ function processSerialData(data) {
         motorSwitch.disabled = false;
         
         // Reset homing status on new connection
-        minPositionSet = false;
-        maxPositionSet = false;
+        currentHomingStep = 0;
+        setPositionButton.textContent = "Set Min Position";
+        setPositionButton.disabled = false;
         homingStatus.textContent = "System Not Homed";
         homingStatus.classList.remove("homed");
         homingStatus.classList.add("not-homed");
@@ -713,9 +717,6 @@ function processSerialData(data) {
         // Update the chart with actual value
         updateChart(targetData[targetData.length - 1] || fullTargetData[fullTargetData.length - 1] || 0, height);
         
-        // Consider system homed once we're receiving angle data
-        setSystemHomed();
-        
         console.log('Received angle percentage:', height);
     }
 
@@ -735,22 +736,22 @@ function processSerialData(data) {
         // Update the chart with actual value
         updateChart(targetData[targetData.length - 1] || fullTargetData[fullTargetData.length - 1] || 0, angle);
         
-        // Consider system homed once we're receiving angle data
-        setSystemHomed();
-        
         console.log('Received current angle:', angle);
     }
 
-    // Check for "B" (min position set)
-    if (data.trim() === "B") {
-        minPositionSet = true;
-        console.log('Min position set (B received)');
+    // Check for "D" (min position confirmed)
+    if (data.trim() === "D") {
+        currentHomingStep = 1;
+        setPositionButton.textContent = "Set Max Position";
+        console.log('Min position confirmed (D received)');
     }
 
-    // Check for "C" (max position set)
-    if (data.trim() === "C") {
-        maxPositionSet = true;
-        console.log('Max position set (C received)');
+    // Check for "E" (max position confirmed, system fully homed)
+    if (data.trim() === "E") {
+        currentHomingStep = 2;
+        setPositionButton.disabled = true;
+        setSystemHomed();
+        console.log('Max position confirmed (E received), system fully homed');
     }
 
     // Check for motor status updates (Z:0 or Z:1)
