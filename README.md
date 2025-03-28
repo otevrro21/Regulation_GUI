@@ -3,7 +3,7 @@
 ## Setup:
 
 To get this app running you need Docker and Docker compose.
-1. Simply clone this repo in your desired directory
+1. Simply clone this repo or just download the *docker-compose.yml* file in your desired directory
 2. Open terminal in that directory
 3. Run:
 ```
