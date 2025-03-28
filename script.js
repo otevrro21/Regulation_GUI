@@ -23,6 +23,8 @@ let port;
 let reader;
 let writer;
 let readLoopRunning = false;
+let handshakeCompleted = false;
+let handshakeTimeout = null;
 
 // Connection monitoring variables
 let lastDataReceived = 0;
@@ -41,6 +43,10 @@ const fullTimeData = [];
 let targetData = Array(viewWindowSize).fill(0);
 let actualData = Array(viewWindowSize).fill(0);
 let timeLabels = Array(viewWindowSize).fill('');
+
+// Homing status tracking variables
+let minPositionSet = false;
+let maxPositionSet = false;
 
 // Initialize the chart when the page loads
 document.addEventListener('DOMContentLoaded', initChart);
@@ -148,8 +154,13 @@ function initChart() {
 
 // Function to update the chart with new data
 function updateChart(targetValue, actualValue) {
-    // Add timestamp
-    const timestamp = new Date().toISOString();
+    // Get current system time in HH:MM:SS.mmm format
+    const now = new Date();
+    const hours = now.getHours().toString().padStart(2, '0');
+    const minutes = now.getMinutes().toString().padStart(2, '0');
+    const seconds = now.getSeconds().toString().padStart(2, '0');
+    const milliseconds = now.getMilliseconds().toString().padStart(3, '0');
+    const timestamp = `${hours}:${minutes}:${seconds}.${milliseconds}`;
     
     // Store in full data arrays
     fullTargetData.push(targetValue);
@@ -176,7 +187,7 @@ function exportToCsv() {
     }
     
     // Create CSV content
-    let csvContent = 'Timestamp,Target Angle,Actual Angle\n';
+    let csvContent = 'Time,Target Angle,Actual Angle\n';
     
     for (let i = 0; i < fullTargetData.length; i++) {
         csvContent += `${fullTimeData[i]},${fullTargetData[i]},${fullActualData[i]}\n`;
@@ -189,9 +200,10 @@ function exportToCsv() {
     const link = document.createElement('a');
     const url = URL.createObjectURL(blob);
     
-    // Set up the download
+    // Set up the download - still include date in filename
+    const currentDate = new Date().toISOString().split('T')[0];
     link.setAttribute('href', url);
-    link.setAttribute('download', `angle_data_${new Date().toISOString().replace(/:/g, '-')}.csv`);
+    link.setAttribute('download', `angle_data_${currentDate}_${new Date().toTimeString().slice(0,8).replace(/:/g, '-')}.csv`);
     link.style.visibility = 'hidden';
     
     // Add to document, click and remove
@@ -339,15 +351,25 @@ connectButton.addEventListener('click', async () => {
         // Open the port
         await port.open({ baudRate: 115200 }); //! baudrate settings ----------------------------------
         
-        statusText.textContent = 'Connected';
-        statusText.className = 'connected';
+        statusText.textContent = 'Connecting...';
+        statusText.className = 'connecting';
         connectButton.textContent = 'Disconnect';
         
-        // Enable motor switch when connected
-        motorSwitch.disabled = false;
+        // Set up the reader and writer first
+        await setupCommunication();
         
-        // Set up the reader and writer
-        setupCommunication();
+        // Send handshake character to device
+        await sendHandshake();
+        
+        // Start handshake timeout
+        handshakeTimeout = setTimeout(() => {
+            if (!handshakeCompleted) {
+                statusText.textContent = 'Handshake timeout';
+                statusText.className = 'disconnected';
+                disconnectFromDevice();
+            }
+        }, 5000); // 5 second timeout for handshake
+        
     } catch (error) {
         console.error('Error connecting to serial port:', error);
         if (error.name === 'NotFoundError') {
@@ -358,6 +380,23 @@ connectButton.addEventListener('click', async () => {
     }
 });
 
+// Send handshake character to device
+async function sendHandshake() {
+    if (!writer) return;
+    
+    try {
+        // Send 'M' character followed by newline
+        const command = 'M\n';
+        const encoder = new TextEncoder();
+        const data = encoder.encode(command);
+        await writer.write(data);
+        
+        console.log('Sent handshake character (M)');
+    } catch (error) {
+        console.error('Error sending handshake:', error);
+    }
+}
+
 // Proper disconnection from device
 async function disconnectFromDevice() {
     if (!port) return;
@@ -366,6 +405,14 @@ async function disconnectFromDevice() {
         console.log('Disconnecting from device');
         
         readLoopRunning = false;
+        handshakeCompleted = false;
+        minPositionSet = false;
+        maxPositionSet = false;
+        
+        if (handshakeTimeout) {
+            clearTimeout(handshakeTimeout);
+            handshakeTimeout = null;
+        }
         
         if (reader) {
             await reader.cancel().catch(e => console.error('Error canceling reader:', e));
@@ -451,12 +498,12 @@ async function sendPositionValue() {
 async function sendMinPosition() {
     if (!writer) return;
     try {
-        // Ensure newline at the end
-        const command = 'H:0\n';
+        // Use 'B' command for minimum position
+        const command = 'B\n';
         const encoder = new TextEncoder();
         const data = encoder.encode(command);
         await writer.write(data);
-        console.log('Sent min position command');
+        console.log('Sent min position command (B)');
     } catch (error) {
         console.error('Error sending min position command:', error);
     }
@@ -466,12 +513,12 @@ async function sendMinPosition() {
 async function sendMaxPosition() {
     if (!writer) return;
     try {
-        // Ensure newline at the end
-        const command = 'H:1\n';
+        // Use 'C' command for maximum position
+        const command = 'C\n';
         const encoder = new TextEncoder();
         const data = encoder.encode(command);
         await writer.write(data);
-        console.log('Sent max position command');
+        console.log('Sent max position command (C)');
     } catch (error) {
         console.error('Error sending max position command:', error);
     }
@@ -612,10 +659,43 @@ function processSerialBuffer() {
     dataBuffer = lines[lines.length - 1];
 }
 
-// Process data received from the serial device - handle ping response
+// Process data received from the serial device
 function processSerialData(data) {
+    // Print raw data to console for debugging
+    console.log('Serial received:', data);
+    
     // We received some data, so update the last response time
     lastDataReceived = Date.now();
+    
+    // Check for handshake confirmation
+    if (data.trim() === 'N') {
+        console.log('Received handshake confirmation (N)');
+        handshakeCompleted = true;
+        
+        if (handshakeTimeout) {
+            clearTimeout(handshakeTimeout);
+            handshakeTimeout = null;
+        }
+        
+        // Now we can consider the connection established
+        statusText.textContent = 'Connected';
+        statusText.className = 'connected';
+        
+        // Enable motor switch when connected
+        motorSwitch.disabled = false;
+        
+        // Reset homing status on new connection
+        minPositionSet = false;
+        maxPositionSet = false;
+        homingStatus.textContent = "System Not Homed";
+        homingStatus.classList.remove("homed");
+        homingStatus.classList.add("not-homed");
+        
+        return; // Skip other processing for the handshake confirmation
+    }
+    
+    // Only process other data if handshake is completed
+    if (!handshakeCompleted) return;
     
     // Look for height percentage data in format "HEIGHT:XX.X"
     const heightRegex = /HEIGHT:(\d+(\.\d+)?)/;
@@ -632,6 +712,9 @@ function processSerialData(data) {
         
         // Update the chart with actual value
         updateChart(targetData[targetData.length - 1] || fullTargetData[fullTargetData.length - 1] || 0, height);
+        
+        // Consider system homed once we're receiving angle data
+        setSystemHomed();
         
         console.log('Received angle percentage:', height);
     }
@@ -652,23 +735,22 @@ function processSerialData(data) {
         // Update the chart with actual value
         updateChart(targetData[targetData.length - 1] || fullTargetData[fullTargetData.length - 1] || 0, angle);
         
+        // Consider system homed once we're receiving angle data
+        setSystemHomed();
+        
         console.log('Received current angle:', angle);
     }
 
-    // Check for "H:0" (min position set)
-    if (data.includes("H:0")) {
-        homingStatus.textContent = "Min Position Set";
-        homingStatus.classList.remove("not-homed");
-        homingStatus.classList.add("homed");
-        console.log('Min position set');
+    // Check for "B" (min position set)
+    if (data.trim() === "B") {
+        minPositionSet = true;
+        console.log('Min position set (B received)');
     }
 
-    // Check for "H:1" (max position set => system homed)
-    if (data.includes("H:1")) {
-        homingStatus.textContent = "System is homed";
-        homingStatus.classList.remove("not-homed");
-        homingStatus.classList.add("homed");
-        console.log('Max position set, system homed');
+    // Check for "C" (max position set)
+    if (data.trim() === "C") {
+        maxPositionSet = true;
+        console.log('Max position set (C received)');
     }
 
     // Check for motor status updates (Z:0 or Z:1)
@@ -681,4 +763,11 @@ function processSerialData(data) {
         motorSwitch.checked = true;
         console.log('Motor status: ON');
     }
+}
+
+// Function to set the system as homed
+function setSystemHomed() {
+    homingStatus.textContent = "System is homed";
+    homingStatus.classList.remove("not-homed");
+    homingStatus.classList.add("homed");
 }
