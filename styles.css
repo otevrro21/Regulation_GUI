@@ -169,6 +169,9 @@ button:hover {
 .connected {
     color: #4caf50;
 }
+.connecting {
+    color: #ffc107; /* Yellow color for pending connection */
+}
 .disconnected {
     color: #f44336;
 }
