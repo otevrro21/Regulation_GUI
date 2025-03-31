@@ -17,6 +17,12 @@ const dataPointsCount = document.getElementById('data-points-count');
 const viewSlider = document.getElementById('view-slider');
 const viewValue = document.getElementById('view-value');
 
+// Storage keys for localStorage
+const STORAGE_KEY_P = 'regulator_p_value';
+const STORAGE_KEY_S = 'regulator_s_value';
+const STORAGE_KEY_D = 'regulator_d_value';
+const STORAGE_KEY_VIEW = 'regulator_view_window';
+
 // Serial port variables
 let port;
 let reader;
@@ -47,7 +53,12 @@ let timeLabels = Array(viewWindowSize).fill('');
 let currentHomingStep = 0; // 0: Not started, 1: Min set (waiting for max), 2: Fully homed
 
 // Initialize the chart when the page loads
-document.addEventListener('DOMContentLoaded', initChart);
+document.addEventListener('DOMContentLoaded', function() {
+    initChart();
+    
+    // Load saved values from localStorage
+    loadSavedSettings();
+});
 
 // Add view window slider listener
 viewSlider.addEventListener('input', function() {
@@ -59,6 +70,9 @@ viewSlider.addEventListener('input', function() {
     
     // Rebuild the chart with new window size
     angleChart.update();
+    
+    // Save view window size to localStorage
+    localStorage.setItem(STORAGE_KEY_VIEW, viewWindowSize);
 });
 
 // Function to update the display arrays based on window size
@@ -314,6 +328,90 @@ sendPidButton.addEventListener('click', () => {
     sendPsdValues();
 });
 
+// Function to save PSD values to localStorage
+function savePsdValues() {
+    localStorage.setItem(STORAGE_KEY_P, pInput.value);
+    localStorage.setItem(STORAGE_KEY_S, sInput.value);
+    localStorage.setItem(STORAGE_KEY_D, dInput.value);
+    console.log('PSD values saved to localStorage');
+}
+
+// Function to load saved settings from localStorage
+function loadSavedSettings() {
+    // Load PSD values
+    const savedP = localStorage.getItem(STORAGE_KEY_P);
+    const savedS = localStorage.getItem(STORAGE_KEY_S);
+    const savedD = localStorage.getItem(STORAGE_KEY_D);
+    
+    if (savedP !== null) {
+        pInput.value = savedP;
+    }
+    
+    if (savedS !== null) {
+        sInput.value = savedS;
+    }
+    
+    if (savedD !== null) {
+        dInput.value = savedD;
+    }
+    
+    // Load view window size
+    const savedView = localStorage.getItem(STORAGE_KEY_VIEW);
+    if (savedView !== null) {
+        viewWindowSize = parseInt(savedView);
+        viewSlider.value = viewWindowSize;
+        viewValue.textContent = `${viewWindowSize} points`;
+        
+        // Reset chart data arrays with the correct size
+        targetData = Array(viewWindowSize).fill(0);
+        actualData = Array(viewWindowSize).fill(0);
+        timeLabels = Array(viewWindowSize).fill('');
+    }
+}
+
+// Send PSD values to the serial device
+async function sendPsdValues() {
+    if (!writer) return;
+    try {
+        const p = pInput.value;
+        const s = sInput.value;
+        const d = dInput.value;
+        
+        const encoder = new TextEncoder();
+        
+        // Send each value separately with its own prefix, ensuring newline at the end
+        const pCommand = `P:${p}\n`;
+        await writer.write(encoder.encode(pCommand));
+        console.log('Sent P value:', p);
+        
+        // Small delay between commands
+        await new Promise(r => setTimeout(r, 50));
+        
+        const sCommand = `S:${s}\n`;
+        await writer.write(encoder.encode(sCommand));
+        console.log('Sent S value:', s);
+        
+        // Small delay between commands
+        await new Promise(r => setTimeout(r, 50));
+        
+        const dCommand = `D:${d}\n`;
+        await writer.write(encoder.encode(dCommand));
+        console.log('Sent D value:', d);
+        
+        console.log('All PSD values sent separately');
+        
+        // Save values to localStorage after sending
+        savePsdValues();
+    } catch (error) {
+        console.error('Error sending PSD values:', error);
+    }
+}
+
+// Add input listeners to save PSD values when Enter key is pressed
+pInput.addEventListener('change', savePsdValues);
+sInput.addEventListener('change', savePsdValues);
+dInput.addEventListener('change', savePsdValues);
+
 // Set position button (changes function based on current step)
 setPositionButton.addEventListener('click', () => {
     if (currentHomingStep === 0) {
@@ -443,6 +541,7 @@ async function disconnectFromDevice() {
         // Reset position button
         setPositionButton.textContent = "Set Min Position";
         setPositionButton.disabled = true;
+        setPositionButton.classList.remove("disabled"); // Remove the disabled visual class
         
         console.log('Successfully disconnected from device');
     } catch (error) {
@@ -524,41 +623,6 @@ async function sendMaxPosition() {
         console.log('Sent max position command (C)');
     } catch (error) {
         console.error('Error sending max position command:', error);
-    }
-}
-
-// Send PSD values to the serial device
-async function sendPsdValues() {
-    if (!writer) return;
-    try {
-        const p = pInput.value;
-        const s = sInput.value;
-        const d = dInput.value;
-        
-        const encoder = new TextEncoder();
-        
-        // Send each value separately with its own prefix, ensuring newline at the end
-        const pCommand = `P:${p}\n`;
-        await writer.write(encoder.encode(pCommand));
-        console.log('Sent P value:', p);
-        
-        // Small delay between commands
-        await new Promise(r => setTimeout(r, 50));
-        
-        const sCommand = `S:${s}\n`;
-        await writer.write(encoder.encode(sCommand));
-        console.log('Sent S value:', s);
-        
-        // Small delay between commands
-        await new Promise(r => setTimeout(r, 50));
-        
-        const dCommand = `D:${d}\n`;
-        await writer.write(encoder.encode(dCommand));
-        console.log('Sent D value:', d);
-        
-        console.log('All PSD values sent separately');
-    } catch (error) {
-        console.error('Error sending PSD values:', error);
     }
 }
 
@@ -771,4 +835,5 @@ function setSystemHomed() {
     homingStatus.textContent = "System is homed";
     homingStatus.classList.remove("not-homed");
     homingStatus.classList.add("homed");
+    setPositionButton.classList.add("disabled");
 }
