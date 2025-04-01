@@ -8,6 +8,7 @@ on:
       - 'index.html'
       - 'styles.css'
       - 'script.js'
+      - 'buildYourself.txt'
   pull_request:
     types: [closed]
     branches: [ master ]
