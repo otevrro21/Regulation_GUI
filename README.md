@@ -14,3 +14,5 @@ to start the system.
 Since the stack runs a Watchtower container, the webpage will get updated automatically.
 
 To navigate to the page use: http://localhost:35543, or replace localhost with the ip of the host machine if you're trying to connect to it from another client.
+
+Or simply use it here https://otevrro21.github.io/Regulation_GUI/
