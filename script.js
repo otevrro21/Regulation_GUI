@@ -204,31 +204,124 @@ setPositionButton.addEventListener('click', function() {
     }
 });
 
-// Add event listener for send PID button
-sendPidButton.addEventListener('click', function() {
-    if (!port || !handshakeCompleted) return;
+// Add event listener for PID input fields to clear on focus
+pInput.addEventListener('focus', function() {
+    this.value = '';
+});
+
+sInput.addEventListener('focus', function() {
+    this.value = '';
+});
+
+dInput.addEventListener('focus', function() {
+    this.value = '';
+});
+
+// Add event listeners to handle Enter key in PID input fields
+pInput.addEventListener('keydown', function(event) {
+    if (event.key === 'Enter') {
+        event.preventDefault();
+        // If the input is empty or only whitespace, restore the previous value
+        if (!this.value.trim()) {
+            const savedP = localStorage.getItem(STORAGE_KEY_P);
+            this.value = savedP !== null ? savedP : '';
+        } else {
+            const value = validatePidInput(this.value);
+            if (value !== null) {
+                this.value = value;
+            }
+        }
+        sInput.focus(); // Move to next input
+    }
+});
+
+sInput.addEventListener('keydown', function(event) {
+    if (event.key === 'Enter') {
+        event.preventDefault();
+        // If the input is empty or only whitespace, restore the previous value
+        if (!this.value.trim()) {
+            const savedS = localStorage.getItem(STORAGE_KEY_S);
+            this.value = savedS !== null ? savedS : '';
+        } else {
+            const value = validatePidInput(this.value);
+            if (value !== null) {
+                this.value = value;
+            }
+        }
+        dInput.focus(); // Move to next input
+    }
+});
+
+dInput.addEventListener('keydown', function(event) {
+    if (event.key === 'Enter') {
+        event.preventDefault();
+        // If the input is empty or only whitespace, restore the previous value
+        if (!this.value.trim()) {
+            const savedD = localStorage.getItem(STORAGE_KEY_D);
+            this.value = savedD !== null ? savedD : '';
+        } else {
+            const value = validatePidInput(this.value);
+            if (value !== null) {
+                this.value = value;
+            }
+        }
+        sendPidValues(); // Submit all values when Enter is pressed in the last field
+    }
+});
+
+// Function to validate PID input values (0-200, allow floats)
+function validatePidInput(value) {
+    const floatValue = parseFloat(value);
+    if (isNaN(floatValue)) {
+        alert('Please enter a valid number');
+        return null;
+    }
     
-    // Get PID values
+    if (floatValue < 0 || floatValue > 200) {
+        alert('Value must be between 0 and 200');
+        return null;
+    }
+    
+    return floatValue.toString();
+}
+
+// Function to send PID values
+function sendPidValues() {
     const p = parseFloat(pInput.value);
     const s = parseFloat(sInput.value);
     const d = parseFloat(dInput.value);
     
     // Validate values
-    if (isNaN(p) || isNaN(s) || isNaN(d)) {
-        alert('Please enter valid numbers for P, S, and D');
+    if (isNaN(p) || isNaN(s) || isNaN(d) || 
+        p < 0 || p > 200 || 
+        s < 0 || s > 200 || 
+        d < 0 || d > 200) {
+        alert('Please enter valid numbers between 0 and 200 for P, S, and D');
         return;
     }
     
-    // Send PID values to the device
-    sendCommand(`P:${p.toFixed(2)}`);
-    sendCommand(`S:${s.toFixed(2)}`);
-    sendCommand(`D:${d.toFixed(2)}`);
+    // Send PID values to the device if connected
+    if (port && handshakeCompleted) {
+        sendCommand(`P:${p.toFixed(2)}`);
+        sendCommand(`S:${s.toFixed(2)}`);
+        sendCommand(`D:${d.toFixed(2)}`);
+    } else {
+        console.log('Not connected - cannot send PID values');
+    }
     
     // Save to localStorage
     localStorage.setItem(STORAGE_KEY_P, p);
     localStorage.setItem(STORAGE_KEY_S, s);
     localStorage.setItem(STORAGE_KEY_D, d);
-});
+    
+    // Update the regulator chart with the new values
+    // Use the last X value or 0 if not available
+    const lastX = fullXData.length > 0 ? fullXData[fullXData.length - 1] : 0;
+    updateRegulatorChart(p, s, d, lastX);
+}
+
+// Add event listener for send PID button - modified to use the new function
+sendPidButton.addEventListener('click', sendPidValues);
 
 // Set up periodic connection check
 setInterval(function() {
