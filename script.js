@@ -261,7 +261,7 @@ positionSlider.addEventListener('change', function() {
     // Only send command if we're connected
     if (port && handshakeCompleted) {
         // Send command to set position - format: "T:xx" (Target position)
-        sendCommand(`T:${value}`);
+        sendCommand(`A:${value}`);
     } else {
         console.log('Not connected - cannot send position');
     }
