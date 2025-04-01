@@ -320,10 +320,11 @@ input:checked + .slider-switch:before {
 /* Styles for the live graph container */
 .graph-container {
     margin-top: 30px;
+    margin-bottom: 30px;
     background-color: #252525;
     border-radius: 6px;
     padding: 15px;
-    height: 300px;
+    height: 350px; /* Increased from 300px to 350px to provide more space */
     position: relative;
 }
 
@@ -335,7 +336,7 @@ input:checked + .slider-switch:before {
 }
 
 .graph-canvas-container {
-    height: 250px;
+    height: 220px; /* Decreased from 250px to 220px to allow space for controls below */
     width: 100%;
 }
 
@@ -343,6 +344,7 @@ input:checked + .slider-switch:before {
     display: flex;
     justify-content: center;
     margin-top: 10px;
+    margin-bottom: 15px;
 }
 
 .legend-item {
@@ -367,9 +369,36 @@ input:checked + .slider-switch:before {
     background-color: #4caf50;
 }
 
+/* Additional styles for the regulator graph legend */
+#regulator-legend {
+    display: flex;
+    justify-content: center;
+    margin-top: 10px;
+    margin-bottom: 15px;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+
+.p-color {
+    background-color: #FF5722;
+}
+
+.s-color {
+    background-color: #9C27B0;
+}
+
+.d-color {
+    background-color: #FFEB3B;
+}
+
+.x-color {
+    background-color: #00BCD4;
+}
+
 /* Styles for data export controls */
 .data-controls {
-    margin-top: 10px;
+    margin-top: 15px; /* Increased top margin */
+    margin-bottom: 5px; /* Added bottom margin */
     display: flex;
     justify-content: center;
     gap: 10px;
@@ -394,6 +423,7 @@ input:checked + .slider-switch:before {
     color: #bbb;
     text-align: center;
     margin-top: 5px;
+    margin-bottom: 5px; /* Added bottom margin */
 }
 
 /* Styles for the view window slider */
@@ -401,6 +431,7 @@ input:checked + .slider-switch:before {
     display: flex;
     align-items: center;
     margin-top: 10px;
+    margin-bottom: 10px; /* Added bottom margin for better spacing */
     gap: 10px;
 }
 
@@ -427,7 +458,7 @@ input:checked + .slider-switch:before {
 /* Remove the floating label style and replace with subtle link style */
 .copilot-link {
     position: fixed;
-    bottom: 10px;
+    bottom: 20px;
     right: 10px;
     color: #666;
     font-size: 12px;
@@ -451,4 +482,28 @@ input:checked + .slider-switch:before {
     font-size: 12px;
     z-index: 100;
     opacity: 0.7;
+}
+
+/* Export button corner styles */
+.export-corner {
+    position: fixed;
+    bottom: 40px;
+    right: 20px;
+    background-color: #1e1e1e;
+    padding: 10px;
+    border-radius: 8px;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+    z-index: 100;
+}
+
+.export-corner .export-button {
+    margin: 0;
+    padding: 10px 20px;
+    font-size: 14px;
+    font-weight: bold;
+    background-color: #2196F3;
+}
+
+.export-corner .export-button:hover {
+    background-color: #2196F3;
 }
