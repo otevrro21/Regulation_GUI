@@ -83,20 +83,54 @@
                     <input type="range" id="view-slider" class="view-slider" min="10" max="1000" value="100" step="10">
                     <span id="view-value" class="view-value">100 points</span>
                 </div>
-                <!-- Data export controls -->
-                <div class="data-controls">
-                    <button id="export-csv" class="export-button">Export Data to CSV</button>
+                <div class="data-status" id="angle-data-points-count">Angle data: 0 points</div>
+            </div>
+            
+            <!-- Regulator Graph Container -->
+            <div class="graph-container">
+                <h3>Regulator Values</h3>
+                <div class="graph-canvas-container">
+                    <canvas id="regulatorChart"></canvas>
                 </div>
-                <div class="data-status" id="data-points-count">Data points: 0</div>
+                <div id="regulator-legend">
+                    <div class="legend-item">
+                        <div class="legend-color p-color"></div>
+                        <div>P</div>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-color s-color"></div>
+                        <div>S</div>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-color d-color"></div>
+                        <div>D</div>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-color x-color"></div>
+                        <div>X</div>
+                    </div>
+                </div>
+                <!-- View window control for regulator graph -->
+                <div class="view-control">
+                    <span class="view-label">View window:</span>
+                    <input type="range" id="regulator-view-slider" class="view-slider" min="10" max="1000" value="100" step="10">
+                    <span id="regulator-view-value" class="view-value">100 points</span>
+                </div>
+                <div class="data-status" id="regulator-data-points-count">Regulator data: 0 points</div>
             </div>
         </div>
+    </div>
+
+    <!-- Export button in corner -->
+    <div class="export-corner">
+        <button id="export-csv" class="export-button">Export All Data to CSV</button>
     </div>
 
     <!-- Replace the GitHub Copilot floating label with a subtle link -->
     <a href="https://github.com/features/copilot" target="_blank" class="copilot-link">Made with GitHub Copilot</a>
     
     <!-- Add version number to bottom left -->
-    <span class="version-number">v1.0.0</span>
+    <span class="version-number">v2.0.0</span>
 
     <!-- Add Chart.js library -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
