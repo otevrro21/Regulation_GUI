@@ -39,6 +39,17 @@ let handshakeTimeout = null;
 let lastDataReceived = 0;
 let connectionTimeoutMs = 10000; // Consider connection stale after 10 seconds without data
 
+// Conversion functions for percentage to degrees and vice versa
+function percentageToDegrees(percentage) {
+    // 0% = 225 degrees, 100% = 135 degrees (linear mapping)
+    return 225 - (percentage * 0.9); // 225 - (percentage * (225-135)/100)
+}
+
+function degreesToPercentage(degrees) {
+    // 225 degrees = 0%, 135 degrees = 100% (linear mapping)
+    return (225 - degrees) / 0.9; // (225 - degrees) / ((225-135)/100)
+}
+
 // Add event listener for the connect button
 connectButton.addEventListener('click', async function() {
     // If already connected, disconnect
@@ -336,16 +347,23 @@ setInterval(function() {
     }
 }, 5000); // Check every 5 seconds
 
-// Remove the input event listener and only use the change event
-// This removes the continuous updating while dragging
-// and only updates when the user releases the slider
+// Add event listener for real-time slider updates (display only)
+positionSlider.addEventListener('input', function() {
+    const value = parseInt(this.value);
+    
+    // Convert percentage to degrees for display
+    const degrees = percentageToDegrees(value);
+    
+    // Update the position value display in real-time
+    positionValue.textContent = `${degrees.toFixed(1)}°`;
+});
 
 // Add event listener for slider change to update display and send command to device
 positionSlider.addEventListener('change', function() {
     const value = parseInt(this.value);
     
-    // Update the position value display
-    positionValue.textContent = `${value}%`;
+    // Convert percentage to degrees for display
+    const degrees = percentageToDegrees(value);
     
     // Update the chart with the new target value while keeping the current actual value
     const currentActual = actualData[actualData.length - 1] || 0;
@@ -353,7 +371,7 @@ positionSlider.addEventListener('change', function() {
     
     // Only send command if we're connected
     if (port && handshakeCompleted) {
-        // Send command to set position - format: "T:xx" (Target position)
+        // Send command to set position - format: "A:xx" (Target position as percentage)
         sendCommand(`A:${value}`);
     } else {
         console.log('Not connected - cannot send position');
@@ -468,8 +486,9 @@ function updateDisplayArrays() {
         
         for (let i = 0; i < dataLength; i++) {
             const fullIndex = startIndex + i;
-            targetData[i] = fullTargetData[fullIndex];
-            actualData[i] = fullActualData[fullIndex];
+            // Keep the percentage values but map them to the degree scale on the y-axis
+            targetData[i] = percentageToDegrees(fullTargetData[fullIndex]);
+            actualData[i] = percentageToDegrees(fullActualData[fullIndex]);
             timeLabels[i] = i.toString();
         }
     }
@@ -552,10 +571,15 @@ function initChart() {
                     display: false // Hide x-axis labels for cleaner look
                 },
                 y: {
-                    beginAtZero: true,
-                    max: 130, // Increase maximum to 130%
+                    reverse: true, // This flips the axis so that 225 is at the bottom and 135 is at the top
+                    min: 135, // Set minimum to 135 degrees (for 100%)
+                    max: 225, // Set maximum to 225 degrees (for 0%)
                     ticks: {
-                        color: '#bbb'
+                        color: '#bbb',
+                        callback: function(value) {
+                            // Display the value as degrees
+                            return value + '°';
+                        }
                     },
                     grid: {
                         color: 'rgba(255, 255, 255, 0.1)'
@@ -568,7 +592,14 @@ function initChart() {
                 },
                 tooltip: {
                     mode: 'index',
-                    intersect: false
+                    intersect: false,
+                    callbacks: {
+                        label: function(context) {
+                            // Convert percentage to degrees for tooltip display
+                            const value = context.raw;
+                            return context.dataset.label + ': ' + value.toFixed(1) + '°';
+                        }
+                    }
                 }
             }
         }
@@ -668,7 +699,7 @@ function updateChart(targetValue, actualValue) {
     const milliseconds = now.getMilliseconds().toString().padStart(3, '0');
     const timestamp = `${hours}:${minutes}:${seconds}.${milliseconds}`;
     
-    // Store in full data arrays
+    // Store in full data arrays (keep using percentage values)
     fullTargetData.push(targetValue);
     fullActualData.push(actualValue);
     fullTimeData.push(timestamp);
@@ -676,7 +707,11 @@ function updateChart(targetValue, actualValue) {
     // Update data points count display
     angleDataPointsCount.textContent = `Angle data: ${fullTargetData.length} points`;
     
-    // Update display arrays based on current window size
+    // Transform data for display (convert percentage to degrees for y-axis)
+    const targetDegrees = percentageToDegrees(targetValue);
+    const actualDegrees = percentageToDegrees(actualValue);
+    
+    // For chart display, we'll modify the updateDisplayArrays function
     updateDisplayArrays();
     
     // Update the chart
@@ -710,7 +745,7 @@ function updateRegulatorChart(pValue, sValue, dValue, xValue) {
     regulatorChart.update();
 }
 
-// Export data to CSV - modified to include all data points and regulator data
+// Export data to CSV - modified to include all data points, regulator data, and angular degrees
 exportCsvButton.addEventListener('click', exportToCsv);
 
 function exportToCsv() {
@@ -720,21 +755,26 @@ function exportToCsv() {
     }
     
     // Create CSV content
-    let csvContent = 'Time,Target Angle,Actual Angle,P Value,S Value,D Value,X Output\n';
+    let csvContent = 'Time,Target Angle (%),Target Angle (°),Actual Angle (%),Actual Angle (°),P Value,S Value,D Value,X Output\n';
     
     // Determine the maximum length of data arrays
     const maxLength = Math.max(fullTargetData.length, fullPData.length);
     
     for (let i = 0; i < maxLength; i++) {
         const time = i < fullTimeData.length ? fullTimeData[i] : '';
-        const target = i < fullTargetData.length ? fullTargetData[i] : '';
-        const actual = i < fullActualData.length ? fullActualData[i] : '';
+        
+        const targetPercent = i < fullTargetData.length ? fullTargetData[i] : '';
+        const targetDegrees = targetPercent !== '' ? percentageToDegrees(targetPercent).toFixed(1) : '';
+        
+        const actualPercent = i < fullActualData.length ? fullActualData[i] : '';
+        const actualDegrees = actualPercent !== '' ? percentageToDegrees(actualPercent).toFixed(1) : '';
+        
         const pVal = i < fullPData.length ? fullPData[i] : '';
         const sVal = i < fullSData.length ? fullSData[i] : '';
         const dVal = i < fullDData.length ? fullDData[i] : '';
         const xVal = i < fullXData.length ? fullXData[i] : '';
         
-        csvContent += `${time},${target},${actual},${pVal},${sVal},${dVal},${xVal}\n`;
+        csvContent += `${time},${targetPercent},${targetDegrees},${actualPercent},${actualDegrees},${pVal},${sVal},${dVal},${xVal}\n`;
     }
     
     // Create a blob with the CSV data
@@ -851,16 +891,19 @@ function processSerialData(data) {
     if (heightMatch) {
         const height = parseFloat(heightMatch[1]);
         
-        // Update the height percentage display
-        heightPercentage.textContent = `${height.toFixed(1)}%`;
+        // Convert percentage to degrees for display
+        const degrees = percentageToDegrees(height);
+        
+        // Update the height percentage display with degrees
+        heightPercentage.textContent = `${degrees.toFixed(1)}°`;
         
         // Update the visual indicator - now horizontal
         heightFill.style.width = `${height}%`;
         
-        // Update the chart with actual value
+        // Update the chart with actual value (still using percentage)
         updateChart(targetData[targetData.length - 1] || fullTargetData[fullTargetData.length - 1] || 0, height);
         
-        console.log('Received angle percentage:', height);
+        console.log('Received angle percentage:', height, 'degrees:', degrees.toFixed(1));
     }
 
     // Look for angle data in format "A:XX.X" (A followed by colon and then a number)
@@ -870,16 +913,19 @@ function processSerialData(data) {
     if (angleMatch) {
         const angle = parseFloat(angleMatch[1]);
         
-        // Update the height percentage display with the angle
-        heightPercentage.textContent = `${angle.toFixed(1)}%`;
+        // Convert percentage to degrees for display
+        const degrees = percentageToDegrees(angle);
         
-        // Update the visual indicator
+        // Update the height percentage display with the angle in degrees
+        heightPercentage.textContent = `${degrees.toFixed(1)}°`;
+        
+        // Update the visual indicator (still in percentage)
         heightFill.style.width = `${angle}%`;
         
-        // Update the chart with actual value
+        // Update the chart with actual value (still using percentage)
         updateChart(targetData[targetData.length - 1] || fullTargetData[fullTargetData.length - 1] || 0, angle);
         
-        console.log('Received current angle:', angle);
+        console.log('Received current angle percentage:', angle, 'degrees:', degrees.toFixed(1));
     }
 
     // Look for regulator P value data in format "P:XX.X"
