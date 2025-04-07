@@ -365,8 +365,12 @@ positionSlider.addEventListener('change', function() {
     // Convert percentage to degrees for display
     const degrees = percentageToDegrees(value);
     
-    // Update the chart with the new target value while keeping the current actual value
-    const currentActual = actualData[actualData.length - 1] || 0;
+    // Update the position value display
+    positionValue.textContent = `${degrees.toFixed(1)}°`;
+    
+    // Update the chart with the new target value
+    // The chart expects percentage values that it will convert to degrees internally
+    const currentActual = fullActualData.length > 0 ? fullActualData[fullActualData.length - 1] : 0;
     updateChart(value, currentActual);
     
     // Only send command if we're connected
@@ -707,11 +711,7 @@ function updateChart(targetValue, actualValue) {
     // Update data points count display
     angleDataPointsCount.textContent = `Angle data: ${fullTargetData.length} points`;
     
-    // Transform data for display (convert percentage to degrees for y-axis)
-    const targetDegrees = percentageToDegrees(targetValue);
-    const actualDegrees = percentageToDegrees(actualValue);
-    
-    // For chart display, we'll modify the updateDisplayArrays function
+    // Update display arrays based on current window size
     updateDisplayArrays();
     
     // Update the chart
