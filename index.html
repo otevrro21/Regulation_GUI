@@ -3,137 +3,522 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Regulator</title>
-    <link rel="icon" type="image/x-icon" href="https://assets.blahaj.land/pictures/favicon.png">
-    <link rel="stylesheet" href="styles.css">
+    <title>USB Serial Controller</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1000px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+        .card {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            margin-bottom: 20px;
+        }
+        .full-width {
+            grid-column: 1 / -1;
+        }
+        button {
+            background-color: #4CAF50;
+            border: none;
+            color: white;
+            padding: 10px 20px;
+            text-align: center;
+            text-decoration: none;
+            display: inline-block;
+            font-size: 16px;
+            margin: 4px 2px;
+            cursor: pointer;
+            border-radius: 4px;
+        }
+        button:disabled {
+            background-color: #cccccc;
+            cursor: not-allowed;
+        }
+        .slider-container {
+            display: flex;
+            align-items: center;
+            margin: 20px 0;
+        }
+        .slider-container input {
+            flex-grow: 1;
+            margin: 0 10px;
+        }
+        .status {
+            padding: 10px;
+            margin-bottom: 10px;
+            border-radius: 4px;
+        }
+        .connected {
+            background-color: #d4edda;
+            color: #155724;
+        }
+        .disconnected {
+            background-color: #f8d7da;
+            color: #721c24;
+        }
+        .input-group {
+            display: flex;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+        .input-group label {
+            width: 100px;
+        }
+        .input-group input {
+            flex-grow: 1;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        .chart-container {
+            position: relative;
+            height: 200px;
+        }
+    </style>
 </head>
 <body>
-    <div class="connection-corner">
-        <div class="connection-status">
-            <span id="status-text" class="disconnected">Disconnected</span>
-        </div>
-        <button id="connect-button">Connect to Device</button>
-        <div class="connection-status">
-            <span id="homing-status" class="not-homed">System Not Homed</span>
-        </div>
-        <button id="set-position-button">Set Min Position</button>
-        <div class="switch-container">
-            <span class="switch-label">Motor Power:</span>
-            <label class="switch">
-                <input type="checkbox" id="motor-switch" disabled>
-                <span class="slider-switch"></span>
-            </label>
-        </div>
-    </div>
-
-    <div class="psd-corner">
-        <h3>PSD Parameters</h3>
-        <div class="input-container">
-            <label for="p-input">P value:</label>
-            <input type="number" id="p-input" min="0" max="200" value="0">
-        </div>
-        <div class="input-container">
-            <label for="s-input">S value:</label>
-            <input type="number" id="s-input" min="0" max="200" value="0">
-        </div>
-        <div class="input-container">
-            <label for="d-input">D value:</label>
-            <input type="number" id="d-input" min="0" max="200" value="0">
-        </div>
-        <button id="send-pid-button">Apply PSD Values</button>
+    <h1>USB Serial Controller</h1>
+    
+    <div class="card full-width">
+        <div id="connectionStatus" class="status disconnected">Not connected</div>
+        <button id="connectButton">Connect to USB Device</button>
     </div>
 
     <div class="container">
-        <h1>Regulator control</h1>
-        
-        <div class="controller">
+        <div class="card">
+            <h2>Device Control</h2>
+            <button id="setMinButton" disabled>Set Minimum Position</button>
             <div class="slider-container">
-                <label for="position-slider">Set Angle:</label>
-                <input type="range" id="position-slider" class="slider" min="1" max="100" value="0" step="1">
-                <span id="position-value" class="value">180.0°</span>
+                <span>225°</span>
+                <input type="range" id="angleSlider" min="0" max="100" value="50" disabled>
+                <span>135°</span>
             </div>
-            
-            <div class="height-display">
-                <label class="height-label">Current Angle:</label>
-                <div class="visual-indicator">
-                    <div id="height-fill" class="fill" style="width: 0%;"></div>
-                </div>
-                <div class="height-value" id="height-percentage">0°</div>
+            <div style="text-align: center;">
+                <span id="angleValue">180°</span>
             </div>
-            
-            <!-- Live Graph Container -->
-            <div class="graph-container">
-                <h3>Live Angle Data</h3>
-                <div class="graph-canvas-container">
-                    <canvas id="angleChart"></canvas>
-                </div>
-                <div id="graph-legend">
-                    <div class="legend-item">
-                        <div class="legend-color target-color"></div>
-                        <div>Target Angle</div>
-                    </div>
-                    <div class="legend-item">
-                        <div class="legend-color actual-color"></div>
-                        <div>Actual Angle</div>
-                    </div>
-                </div>
-                <!-- View window control -->
-                <div class="view-control">
-                    <span class="view-label">View window:</span>
-                    <input type="range" id="view-slider" class="view-slider" min="10" max="1000" value="100" step="10">
-                    <span id="view-value" class="view-value">100 points</span>
-                </div>
-                <div class="data-status" id="angle-data-points-count">Angle data: 0 points</div>
+        </div>
+
+        <div class="card">
+            <h2>PID Settings</h2>
+            <div class="input-group">
+                <label for="pValue">P Value:</label>
+                <input type="number" id="pValue" min="0" max="200" step="0.1" value="0">
             </div>
-            
-            <!-- Regulator Graph Container -->
-            <div class="graph-container">
-                <h3>Regulator Values</h3>
-                <div class="graph-canvas-container">
-                    <canvas id="regulatorChart"></canvas>
-                </div>
-                <div id="regulator-legend">
-                    <div class="legend-item">
-                        <div class="legend-color p-color"></div>
-                        <div>P</div>
-                    </div>
-                    <div class="legend-item">
-                        <div class="legend-color s-color"></div>
-                        <div>S</div>
-                    </div>
-                    <div class="legend-item">
-                        <div class="legend-color d-color"></div>
-                        <div>D</div>
-                    </div>
-                    <div class="legend-item">
-                        <div class="legend-color x-color"></div>
-                        <div>X</div>
-                    </div>
-                </div>
-                <!-- View window control for regulator graph -->
-                <div class="view-control">
-                    <span class="view-label">View window:</span>
-                    <input type="range" id="regulator-view-slider" class="view-slider" min="10" max="1000" value="100" step="10">
-                    <span id="regulator-view-value" class="view-value">100 points</span>
-                </div>
-                <div class="data-status" id="regulator-data-points-count">Regulator data: 0 points</div>
+            <div class="input-group">
+                <label for="sValue">S Value:</label>
+                <input type="number" id="sValue" min="0" max="200" step="0.1" value="0">
+            </div>
+            <div class="input-group">
+                <label for="dValue">D Value:</label>
+                <input type="number" id="dValue" min="0" max="200" step="0.1" value="0">
+            </div>
+            <button id="sendPIDButton" disabled>Send PID Values</button>
+        </div>
+    </div>
+
+    <div class="container">
+        <div class="card">
+            <h2>Angle Graph</h2>
+            <div class="chart-container">
+                <canvas id="angleChart"></canvas>
+            </div>
+        </div>
+
+        <div class="card">
+            <h2>PID Graph</h2>
+            <div class="chart-container">
+                <canvas id="pidChart"></canvas>
             </div>
         </div>
     </div>
 
-    <!-- Export button in corner -->
-    <div class="export-corner">
-        <button id="export-csv" class="export-button">Export All Data to CSV</button>
+    <div class="card full-width">
+        <h2>Serial Monitor</h2>
+        <div id="serialMonitor" style="height: 200px; overflow-y: auto; border: 1px solid #ccc; padding: 10px; background-color: #f9f9f9;"></div>
     </div>
 
-    <!-- Replace the GitHub Copilot floating label with a subtle link -->
-    <a href="https://github.com/features/copilot" target="_blank" class="copilot-link">Made with GitHub Copilot</a>
+    <script>
+        // Global variables
+        let port;
+        let reader;
+        let writer;
+        let readLoopRunning = false;
+        let setMinMode = true;
+        let anglePercentage = 50; // Default to middle position
+        let targetAngle = 180; // Degrees (middle between 225 and 135)
+        let currentAngle = 180; // Degrees
 
-    <!-- Update version number to reflect the changes -->
-    <span class="version-number">v2.1.0</span>
+        // PID values
+        let pValue = 0;
+        let sValue = 0;
+        let dValue = 0;
+        let xValue = 0;
 
-    <!-- Add Chart.js library -->
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <script src="script.js"></script>
+        // Chart data
+        const angleChartData = {
+            labels: Array(50).fill(''),
+            datasets: [{
+                label: 'Target Angle',
+                data: Array(50).fill(null),
+                borderColor: 'rgb(75, 192, 192)',
+                tension: 0.1
+            }, {
+                label: 'Current Angle',
+                data: Array(50).fill(null),
+                borderColor: 'rgb(255, 99, 132)',
+                tension: 0.1
+            }]
+        };
+
+        const pidChartData = {
+            labels: Array(50).fill(''),
+            datasets: [{
+                label: 'P',
+                data: Array(50).fill(null),
+                borderColor: 'rgb(255, 99, 132)',
+                tension: 0.1
+            }, {
+                label: 'S',
+                data: Array(50).fill(null),
+                borderColor: 'rgb(75, 192, 192)',
+                tension: 0.1
+            }, {
+                label: 'D',
+                data: Array(50).fill(null),
+                borderColor: 'rgb(153, 102, 255)',
+                tension: 0.1
+            }, {
+                label: 'X (Output)',
+                data: Array(50).fill(null),
+                borderColor: 'rgb(255, 159, 64)',
+                tension: 0.1
+            }]
+        };
+
+        // Initialize charts
+        const angleCtx = document.getElementById('angleChart').getContext('2d');
+        const angleChart = new Chart(angleCtx, {
+            type: 'line',
+            data: angleChartData,
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    y: {
+                        beginAtZero: false,
+                        min: 130,
+                        max: 230
+                    }
+                },
+                animation: false
+            }
+        });
+
+        const pidCtx = document.getElementById('pidChart').getContext('2d');
+        const pidChart = new Chart(pidCtx, {
+            type: 'line',
+            data: pidChartData,
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                animation: false
+            }
+        });
+
+        // DOM elements
+        const connectButton = document.getElementById('connectButton');
+        const setMinButton = document.getElementById('setMinButton');
+        const angleSlider = document.getElementById('angleSlider');
+        const angleValue = document.getElementById('angleValue');
+        const pValueInput = document.getElementById('pValue');
+        const sValueInput = document.getElementById('sValue');
+        const dValueInput = document.getElementById('dValue');
+        const sendPIDButton = document.getElementById('sendPIDButton');
+        const serialMonitor = document.getElementById('serialMonitor');
+        const connectionStatus = document.getElementById('connectionStatus');
+
+        // Function to log messages to the serial monitor
+        function logToMonitor(message, sent = false) {
+            const entry = document.createElement('div');
+            entry.textContent = `${sent ? '▶️ SENT: ' : '◀️ RECEIVED: '} ${message}`;
+            entry.style.color = sent ? 'blue' : 'green';
+            entry.style.marginBottom = '5px';
+            serialMonitor.appendChild(entry);
+            serialMonitor.scrollTop = serialMonitor.scrollHeight;
+        }
+
+        // Function to add data to charts
+        function updateAngleChart(targetAngle, currentAngle) {
+            // Remove oldest data point
+            angleChartData.labels.shift();
+            angleChartData.datasets[0].data.shift();
+            angleChartData.datasets[1].data.shift();
+            
+            // Add new data point
+            const now = new Date();
+            const timeString = now.toLocaleTimeString('en-US', { hour12: false });
+            angleChartData.labels.push(timeString);
+            angleChartData.datasets[0].data.push(targetAngle);
+            angleChartData.datasets[1].data.push(currentAngle);
+            
+            // Update chart
+            angleChart.update();
+        }
+
+        function updatePidChart(p, s, d, x) {
+            // Remove oldest data point
+            pidChartData.labels.shift();
+            pidChartData.datasets[0].data.shift();
+            pidChartData.datasets[1].data.shift();
+            pidChartData.datasets[2].data.shift();
+            pidChartData.datasets[3].data.shift();
+            
+            // Add new data point
+            const now = new Date();
+            const timeString = now.toLocaleTimeString('en-US', { hour12: false });
+            pidChartData.labels.push(timeString);
+            pidChartData.datasets[0].data.push(p);
+            pidChartData.datasets[1].data.push(s);
+            pidChartData.datasets[2].data.push(d);
+            pidChartData.datasets[3].data.push(x);
+            
+            // Update chart
+            pidChart.update();
+        }
+
+        // Function to send a command to the device
+        async function sendCommand(command) {
+            if (writer) {
+                const encoder = new TextEncoder();
+                const data = encoder.encode(command);
+                await writer.write(data);
+                logToMonitor(command, true);
+            }
+        }
+
+        // Function to set up the serial connection
+        async function connectToDevice() {
+            try {
+                // Request serial port access
+                port = await navigator.serial.requestPort();
+                
+                // Open the port with the required baud rate
+                await port.open({ baudRate: 115200 });
+                
+                // Create reader and writer
+                const textDecoder = new TextDecoderStream();
+                const readableStreamClosed = port.readable.pipeTo(textDecoder.writable);
+                reader = textDecoder.readable.getReader();
+                
+                const textEncoder = new TextEncoderStream();
+                const writableStreamClosed = textEncoder.readable.pipeTo(port.writable);
+                writer = textEncoder.writable.getWriter();
+                
+                // Update UI
+                connectionStatus.textContent = 'Connected to device';
+                connectionStatus.classList.remove('disconnected');
+                connectionStatus.classList.add('connected');
+                connectButton.textContent = 'Disconnect';
+                
+                // Enable controls
+                setMinButton.disabled = false;
+                sendPIDButton.disabled = false;
+                
+                // Start the initial handshake
+                await sendCommand('M');
+                logToMonitor('Sending initial handshake (M), waiting for response...', true);
+                
+                // Start reading loop
+                readLoopRunning = true;
+                readLoop();
+                
+            } catch (error) {
+                console.error('Error connecting to device:', error);
+                logToMonitor(`Error: ${error.message}`, false);
+            }
+        }
+
+        // Function to disconnect from the device
+        async function disconnectFromDevice() {
+            if (reader) {
+                readLoopRunning = false;
+                try {
+                    await reader.cancel();
+                } catch (error) {
+                    console.error('Error canceling reader:', error);
+                }
+                reader = null;
+            }
+            
+            if (writer) {
+                try {
+                    await writer.close();
+                } catch (error) {
+                    console.error('Error closing writer:', error);
+                }
+                writer = null;
+            }
+            
+            if (port) {
+                try {
+                    await port.close();
+                } catch (error) {
+                    console.error('Error closing port:', error);
+                }
+                port = null;
+            }
+            
+            // Update UI
+            connectionStatus.textContent = 'Disconnected';
+            connectionStatus.classList.remove('connected');
+            connectionStatus.classList.add('disconnected');
+            connectButton.textContent = 'Connect to USB Device';
+            
+            // Disable controls
+            setMinButton.disabled = true;
+            angleSlider.disabled = true;
+            sendPIDButton.disabled = true;
+        }
+
+        // Function to read data from the device
+        async function readLoop() {
+            while (port && readLoopRunning) {
+                try {
+                    const { value, done } = await reader.read();
+                    if (done) {
+                        break;
+                    }
+                    
+                    // Process received data
+                    processReceivedData(value);
+                    
+                } catch (error) {
+                    console.error('Error reading data:', error);
+                    logToMonitor(`Error reading: ${error.message}`, false);
+                    break;
+                }
+            }
+
+            if (readLoopRunning) {
+                await disconnectFromDevice();
+            }
+        }
+
+        // Function to process data received from the device
+        function processReceivedData(data) {
+            logToMonitor(data, false);
+            
+            // Check for handshake confirmation
+            if (data.includes('N')) {
+                logToMonitor('Handshake confirmed, device ready', false);
+            }
+            
+            // Check for position setting confirmation
+            if (data.includes('C')) {
+                logToMonitor('Minimum position set, now click for maximum position', false);
+                setMinMode = false;
+                setMinButton.textContent = 'Set Maximum Position';
+            }
+            
+            // Check for homing confirmation
+            if (data.includes('E')) {
+                logToMonitor('System homed and calibrated, ready for operation', false);
+                angleSlider.disabled = false;
+            }
+            
+            // Process angle data
+            if (data.includes('A:')) {
+                const match = data.match(/A:(\d+(\.\d+)?)/);
+                if (match) {
+                    const receivedPercentage = parseFloat(match[1]);
+                    // Convert percentage back to angle
+                    currentAngle = 225 - (receivedPercentage * (225 - 135) / 100);
+                    updateAngleChart(targetAngle, currentAngle);
+                }
+            }
+            
+            // Process PID data
+            if (data.includes('P:') && data.includes('S:') && data.includes('D:') && data.includes('X:')) {
+                const pMatch = data.match(/P:(\d+(\.\d+)?)/);
+                const sMatch = data.match(/S:(\d+(\.\d+)?)/);
+                const dMatch = data.match(/D:(\d+(\.\d+)?)/);
+                const xMatch = data.match(/X:(\d+(\.\d+)?)/);
+                
+                if (pMatch && sMatch && dMatch && xMatch) {
+                    const p = parseFloat(pMatch[1]);
+                    const s = parseFloat(sMatch[1]);
+                    const d = parseFloat(dMatch[1]);
+                    const x = parseFloat(xMatch[1]);
+                    
+                    updatePidChart(p, s, d, x);
+                }
+            }
+        }
+
+        // Event handlers
+        connectButton.addEventListener('click', async () => {
+            if (port) {
+                await disconnectFromDevice();
+            } else {
+                await connectToDevice();
+            }
+        });
+
+        setMinButton.addEventListener('click', async () => {
+            if (setMinMode) {
+                // Set minimum position
+                await sendCommand('B');
+                logToMonitor('Setting minimum position...', true);
+            } else {
+                // Set maximum position
+                await sendCommand('D');
+                logToMonitor('Setting maximum position...', true);
+                setMinButton.disabled = true;
+            }
+        });
+
+        angleSlider.addEventListener('input', () => {
+            anglePercentage = angleSlider.value;
+            // Calculate angle based on percentage (225° to 135°)
+            targetAngle = 225 - (anglePercentage * (225 - 135) / 100);
+            angleValue.textContent = `Target Angle: ${targetAngle.toFixed(1)}°`;
+        });
+
+        angleSlider.addEventListener('change', async () => {
+            // Send angle percentage when user releases slider
+            await sendCommand(`A:${anglePercentage}`);
+            logToMonitor(`Sending target angle: A:${anglePercentage}`, true);
+        });
+
+        sendPIDButton.addEventListener('click', async () => {
+            pValue = parseFloat(pValueInput.value);
+            sValue = parseFloat(sValueInput.value);
+            dValue = parseFloat(dValueInput.value);
+            
+            // Send PID values
+            const pidCommand = `P:${pValue} S:${sValue} D:${dValue}`;
+            await sendCommand(pidCommand);
+            logToMonitor(`Sending PID values: ${pidCommand}`, true);
+        });
+
+        // Check if Web Serial API is available
+        if ('serial' in navigator) {
+            logToMonitor('Web Serial API is supported in your browser', false);
+        } else {
+            logToMonitor('Web Serial API is not supported in your browser. Please use Chrome or Edge.', false);
+            connectButton.disabled = true;
+        }
+    </script>
 </body>
 </html>
